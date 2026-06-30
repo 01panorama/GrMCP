@@ -92,7 +92,7 @@ public sealed class CbmManageAdrServiceTests
         {
             WriteFile(
                 temp.Path,
-                ".codebase-memory/adr.md",
+                ".graph-mcp/adr.md",
                 """
                 ## PURPOSE
                 Legacy ADR content.

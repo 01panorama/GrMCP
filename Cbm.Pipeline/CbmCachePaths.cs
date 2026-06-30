@@ -2,7 +2,7 @@ namespace Cbm.Pipeline;
 
 public static class CbmCachePaths
 {
-    public const string DefaultCacheFolderName = "codebase-memory-mcp-dotnet";
+    public const string DefaultCacheFolderName = "graph-mcp-dotnet";
 
     public static string ResolveCacheDirectory()
     {

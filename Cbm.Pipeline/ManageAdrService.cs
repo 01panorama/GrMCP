@@ -80,7 +80,7 @@ public sealed class ManageAdrService
             return adr;
         }
 
-        var legacyPath = Path.Combine(rootPath, ".codebase-memory", "adr.md");
+        var legacyPath = Path.Combine(rootPath, ".graph-mcp", "adr.md");
         if (!File.Exists(legacyPath))
         {
             return null;

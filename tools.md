@@ -48,7 +48,7 @@ Typical workflow:
 3. Use query tools such as `search_graph`, `get_code_snippet`, `search_code`, `query_graph`, `get_architecture`, and `trace_path`.
 4. Use mutation tools such as `manage_adr`, `ingest_traces`, and `detect_changes` when you need persisted ADR context, runtime overlays, or git impact analysis.
 
-The cache directory is `CBM_CACHE_DIR` when set, otherwise `~/.cache/codebase-memory-mcp-dotnet`.
+The cache directory is `CBM_CACHE_DIR` when set, otherwise `~/.cache/graph-mcp-dotnet`.
 
 ## Tool Index
 
