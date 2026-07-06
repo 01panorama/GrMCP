@@ -39,10 +39,14 @@ public sealed class SearchCodeService
         var project = store.GetProject(projectName)
             ?? throw new InvalidOperationException("project not indexed");
 
-        if (!ValidateSearchPathArg(project.RootPath)
-            || (!string.IsNullOrWhiteSpace(filePattern) && !ValidateSearchPathArg(filePattern)))
+        if (!SearchPathValidator.IsValid(project.RootPath))
         {
-            throw new ArgumentException("path or file_pattern contains invalid characters");
+            throw new ArgumentException($"root_path contains invalid characters: '{project.RootPath}'");
+        }
+
+        if (!string.IsNullOrWhiteSpace(filePattern) && !SearchPathValidator.IsValid(filePattern))
+        {
+            throw new ArgumentException($"file_pattern contains invalid characters: '{filePattern}'");
         }
 
         Regex? pathRegex = null;
@@ -479,30 +483,6 @@ public sealed class SearchCodeService
         }
 
         return builder.ToString();
-    }
-
-    private static bool ValidateSearchPathArg(string value)
-    {
-        foreach (var ch in value)
-        {
-            switch (ch)
-            {
-                case '\'':
-                case '"':
-                case ';':
-                case '|':
-                case '$':
-                case '`':
-                case '<':
-                case '>':
-                case '\n':
-                case '\r':
-                case '\\':
-                    return false;
-            }
-        }
-
-        return true;
     }
 
     private static bool IsPathUnderRoot(string absolutePath, string rootPath)

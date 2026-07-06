@@ -214,6 +214,30 @@ public sealed class CbmSearchCodeServiceTests
     }
 
     [Fact]
+    public void Search_InvalidRootPathReportsRootPath()
+    {
+        using var cache = TempDirectory.Create();
+        Environment.SetEnvironmentVariable("CBM_CACHE_DIR", cache.Path);
+
+        try
+        {
+            SeedProject("/tmp/search;code-service", store =>
+            {
+                store.UpsertNode(MethodNode("noop", $"{Project}.noop", "noop.cs", 1, 5));
+            });
+
+            var exception = Assert.Throws<ArgumentException>(() =>
+                new SearchCodeService().Search(Project, "noop"));
+
+            Assert.Contains("root_path contains invalid characters", exception.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("CBM_CACHE_DIR", null);
+        }
+    }
+
+    [Fact]
     public void Search_RanksHigherFanInMethodFirst()
     {
         using var temp = TempDirectory.Create();
