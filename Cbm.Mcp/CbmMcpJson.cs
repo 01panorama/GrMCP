@@ -8,12 +8,29 @@ namespace Cbm.Mcp;
 
 internal static class CbmMcpJson
 {
+    private const int CompactNestedListLimit = 8;
+
     internal static readonly JsonSerializerOptions Options = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         WriteIndented = false,
     };
+
+    internal static string FormatError(string error, string? hint = null)
+    {
+        var payload = new Dictionary<string, object?>
+        {
+            ["error"] = error,
+        };
+
+        if (!string.IsNullOrWhiteSpace(hint))
+        {
+            payload["hint"] = hint;
+        }
+
+        return JsonSerializer.Serialize(payload, Options);
+    }
 
     internal static string FormatIndexResult(IndexRepositoryResult result)
     {
@@ -160,7 +177,9 @@ internal static class CbmMcpJson
             Options);
     }
 
-    internal static string FormatArchitecture(CbmArchitectureResult result)
+    internal static string FormatArchitecture(
+        CbmArchitectureResult result,
+        CbmVerbosity verbosity = CbmVerbosity.Full)
     {
         var payload = new Dictionary<string, object?>
         {
@@ -174,8 +193,6 @@ internal static class CbmMcpJson
             payload["path"] = result.Path;
             payload["root_total_nodes"] = result.RootTotalNodes;
             payload["root_total_edges"] = result.RootTotalEdges;
-            payload["scoped_total_nodes"] = result.TotalNodes;
-            payload["scoped_total_edges"] = result.TotalEdges;
         }
 
         if (result.Structure?.NodeLabels is { Count: > 0 } nodeLabels)
@@ -264,15 +281,15 @@ internal static class CbmMcpJson
                 label = cluster.Label,
                 members = cluster.Members,
                 cohesion = cluster.Cohesion,
-                top_nodes = cluster.TopNodes,
-                packages = cluster.Packages,
-                edge_types = cluster.EdgeTypes,
+                top_nodes = LimitList(cluster.TopNodes, verbosity),
+                packages = LimitList(cluster.Packages, verbosity),
+                edge_types = LimitList(cluster.EdgeTypes, verbosity),
             }).ToArray();
         }
 
         if (result.FileTree is { Count: > 0 } fileTree)
         {
-            payload["file_tree"] = fileTree.Select(entry => new
+            payload["file_tree"] = LimitList(fileTree, verbosity).Select(entry => new
             {
                 path = entry.Path,
                 type = entry.Type,
@@ -395,9 +412,10 @@ internal static class CbmMcpJson
     internal static string FormatSearchGraph(
         string projectName,
         CbmSearchGraphResult search,
-        string? searchMode = null)
+        string? searchMode = null,
+        CbmVerbosity verbosity = CbmVerbosity.Full)
     {
-        using var store = OpenProjectStore(projectName);
+        using var store = CbmCachePaths.OpenProjectStore(projectName);
         var degrees = search.Results.Count == 0
             ? new Dictionary<long, CbmNodeDegree>()
             : store.BatchCountDegrees(search.Results.Select(node => node.Id).ToArray());
@@ -409,7 +427,7 @@ internal static class CbmMcpJson
             ["results"] = search.Results.Select(node =>
             {
                 degrees.TryGetValue(node.Id, out var degree);
-                return BuildSearchResultItem(node, degree ?? new CbmNodeDegree(0, 0));
+                return BuildSearchResultItem(node, degree ?? new CbmNodeDegree(0, 0), verbosity);
             }).ToArray(),
         };
 
@@ -463,7 +481,8 @@ internal static class CbmMcpJson
         CbmCodeSnippetResult snippet,
         CbmNode node,
         bool includeNeighbors,
-        CbmStore store)
+        CbmStore store,
+        CbmVerbosity verbosity = CbmVerbosity.Full)
     {
         var payload = new Dictionary<string, object?>
         {
@@ -482,7 +501,10 @@ internal static class CbmMcpJson
             payload["match_method"] = snippet.MatchType;
         }
 
-        MergeProperties(payload, node.PropertiesJson);
+        if (verbosity == CbmVerbosity.Full)
+        {
+            MergeProperties(payload, node.PropertiesJson);
+        }
 
         var degree = store.GetNodeDegree(node.Id);
         payload["callers"] = degree.InDegree;
@@ -505,7 +527,9 @@ internal static class CbmMcpJson
         return JsonSerializer.Serialize(payload, Options);
     }
 
-    internal static string FormatSearchCode(CbmSearchCodeResult result)
+    internal static string FormatSearchCode(
+        CbmSearchCodeResult result,
+        CbmVerbosity verbosity = CbmVerbosity.Full)
     {
         var payload = new Dictionary<string, object?>();
 
@@ -544,21 +568,28 @@ internal static class CbmMcpJson
                 return item;
             }).ToArray();
 
-            payload["raw_matches"] = result.RawMatches.Select(raw => new
+            if (verbosity == CbmVerbosity.Full)
             {
-                file = raw.File,
-                line = raw.Line,
-                content = raw.Content,
-            }).ToArray();
+                payload["raw_matches"] = result.RawMatches.Select(raw => new
+                {
+                    file = raw.File,
+                    line = raw.Line,
+                    content = raw.Content,
+                }).ToArray();
+            }
         }
 
         payload["directories"] = result.Directories;
-        payload["total_grep_matches"] = result.TotalGrepMatches;
+        if (verbosity == CbmVerbosity.Full)
+        {
+            payload["total_grep_matches"] = result.TotalGrepMatches;
+        }
+
         payload["total_results"] = result.TotalResults;
         payload["raw_match_count"] = result.RawMatchCount;
         payload["elapsed_ms"] = result.ElapsedMs;
 
-        if (!string.IsNullOrWhiteSpace(result.DedupRatio))
+        if (verbosity == CbmVerbosity.Full && !string.IsNullOrWhiteSpace(result.DedupRatio))
         {
             payload["dedup_ratio"] = result.DedupRatio;
         }
@@ -686,7 +717,10 @@ internal static class CbmMcpJson
         return document.RootElement.Clone();
     }
 
-    private static Dictionary<string, object?> BuildSearchResultItem(CbmNode node, CbmNodeDegree degree)
+    private static Dictionary<string, object?> BuildSearchResultItem(
+        CbmNode node,
+        CbmNodeDegree degree,
+        CbmVerbosity verbosity)
     {
         var item = new Dictionary<string, object?>
         {
@@ -700,8 +734,22 @@ internal static class CbmMcpJson
             ["out_degree"] = degree.OutDegree,
         };
 
-        MergeProperties(item, node.PropertiesJson);
+        if (verbosity == CbmVerbosity.Full)
+        {
+            MergeProperties(item, node.PropertiesJson);
+        }
+
         return item;
+    }
+
+    private static IReadOnlyList<T> LimitList<T>(IReadOnlyList<T> items, CbmVerbosity verbosity)
+    {
+        if (verbosity != CbmVerbosity.Compact || items.Count <= CompactNestedListLimit)
+        {
+            return items;
+        }
+
+        return items.Take(CompactNestedListLimit).ToArray();
     }
 
     private static void MergeProperties(IDictionary<string, object?> target, string propertiesJson)
@@ -729,11 +777,5 @@ internal static class CbmMcpJson
                 _ => property.Value.GetRawText(),
             };
         }
-    }
-
-    private static CbmStore OpenProjectStore(string projectName)
-    {
-        var databasePath = CbmCachePaths.GetProjectDatabasePath(projectName);
-        return CbmStore.OpenPath(databasePath);
     }
 }

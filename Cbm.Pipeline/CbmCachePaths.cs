@@ -1,3 +1,5 @@
+using Cbm.Store;
+
 namespace Cbm.Pipeline;
 
 public static class CbmCachePaths
@@ -31,6 +33,17 @@ public static class CbmCachePaths
         }
 
         return Path.Combine(EnsureCacheDirectory(), projectName + ".db");
+    }
+
+    public static CbmStore OpenProjectStore(string projectName)
+    {
+        var databasePath = GetProjectDatabasePath(projectName);
+        if (!File.Exists(databasePath))
+        {
+            throw new FileNotFoundException($"Project database not found for '{projectName}'.", databasePath);
+        }
+
+        return CbmStore.OpenPath(databasePath);
     }
 
     public static bool DeleteProjectDatabase(string projectName)

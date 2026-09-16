@@ -68,6 +68,17 @@ public sealed class CbmToolCatalogTests
     }
 
     [Fact]
+    public void HighTokenQueryToolsDocumentVerbosity()
+    {
+        foreach (var name in new[] { "search_graph", "get_code_snippet", "get_architecture", "search_code" })
+        {
+            var tool = CbmToolCatalog.FindByName(name);
+            Assert.NotNull(tool);
+            Assert.Contains(tool.Parameters, parameter => parameter.Name == "verbosity");
+        }
+    }
+
+    [Fact]
     public void CommittedToolsMarkdownDocumentsEveryCatalogTool()
     {
         var repositoryRoot = ResolveRepositoryRoot();

@@ -3,7 +3,6 @@ using System.Text.Json;
 using Cbm.Cypher;
 using Cbm.Mcp;
 using Cbm.Pipeline;
-using Cbm.Store;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 
@@ -228,6 +227,7 @@ public sealed class CbmTools
         [Description("When true, regex matching is case-sensitive.")] bool case_sensitive = false,
         [Description("Maximum results to return.")] int limit = 10,
         [Description("Number of matching nodes to skip before returning results.")] int offset = 0,
+        [Description("Output detail: full (default, CBM parity) or compact (drops metric/property noise).")] string? verbosity = null,
         string[]? semantic_query = null)
     {
         if (string.IsNullOrWhiteSpace(project))
@@ -256,7 +256,8 @@ public sealed class CbmTools
             offset);
 
         var searchMode = !string.IsNullOrWhiteSpace(query) ? "bm25" : null;
-        return Task.FromResult(CbmMcpJson.FormatSearchGraph(project, search, searchMode));
+        return Task.FromResult(
+            CbmMcpJson.FormatSearchGraph(project, search, searchMode, CbmVerbosityParser.Parse(verbosity)));
     }
 
     [McpServerTool(Name = "get_code_snippet")]
@@ -264,7 +265,8 @@ public sealed class CbmTools
     public Task<string> GetCodeSnippetAsync(
         [Description("Indexed project name.")] string project,
         [Description("Exact or suffix qualified_name to resolve.")] string qualified_name,
-        [Description("Include one-hop caller/callee names when available.")] bool include_neighbors = false)
+        [Description("Include one-hop caller/callee names when available.")] bool include_neighbors = false,
+        [Description("Output detail: full (default, CBM parity) or compact (drops metric/property noise).")] string? verbosity = null)
     {
         if (string.IsNullOrWhiteSpace(project))
         {
@@ -289,7 +291,7 @@ public sealed class CbmTools
             throw new McpException(CbmMcpJson.FormatCodeSnippetNotFound(snippet));
         }
 
-        using var store = OpenProjectStore(project);
+        using var store = CbmCachePaths.OpenProjectStore(project);
         var node = store.FindNodeByQualifiedName(project, snippet.QualifiedName!)
             ?? store.FindNodesByQualifiedNameSuffix(project, qualified_name).FirstOrDefault();
         if (node is null)
@@ -297,7 +299,13 @@ public sealed class CbmTools
             throw new McpException("symbol not found after snippet resolution");
         }
 
-        return Task.FromResult(CbmMcpJson.FormatCodeSnippet(snippet, node, include_neighbors, store));
+        return Task.FromResult(
+            CbmMcpJson.FormatCodeSnippet(
+                snippet,
+                node,
+                include_neighbors,
+                store,
+                CbmVerbosityParser.Parse(verbosity)));
     }
 
     [McpServerTool(Name = "get_graph_schema")]
@@ -362,7 +370,8 @@ public sealed class CbmTools
     public Task<string> GetArchitectureAsync(
         [Description("Indexed project name.")] string project,
         [Description("Optional directory prefix to scope architecture (e.g. src/foo).")] string? path = null,
-        [Description("Aspects to include (e.g. structure, packages, clusters, runtime, all). Omit for all.")] string[]? aspects = null)
+        [Description("Aspects to include (e.g. structure, packages, clusters, runtime, all). Omit for all.")] string[]? aspects = null,
+        [Description("Output detail: full (default, CBM parity) or compact (caps cluster lists and file_tree).")] string? verbosity = null)
     {
         if (string.IsNullOrWhiteSpace(project))
         {
@@ -374,7 +383,8 @@ public sealed class CbmTools
         try
         {
             var result = graphArchitectureService.GetArchitecture(project, path, aspects);
-            return Task.FromResult(CbmMcpJson.FormatArchitecture(result));
+            return Task.FromResult(
+                CbmMcpJson.FormatArchitecture(result, CbmVerbosityParser.Parse(verbosity)));
         }
         catch (FileNotFoundException ex)
         {
@@ -451,7 +461,8 @@ public sealed class CbmTools
         [Description("Output mode: compact, full, or files.")] string? mode = null,
         [Description("Context lines around each match (compact mode only).")] int context = 0,
         [Description("When true, treat pattern as extended regex.")] bool regex = false,
-        [Description("Maximum enriched results to return.")] int limit = 10)
+        [Description("Maximum enriched results to return.")] int limit = 10,
+        [Description("Output detail: full (default, CBM parity) or compact (omits raw_matches and redundant counters).")] string? verbosity = null)
     {
         if (string.IsNullOrWhiteSpace(project))
         {
@@ -476,7 +487,8 @@ public sealed class CbmTools
                 context,
                 regex,
                 limit);
-            return Task.FromResult(CbmMcpJson.FormatSearchCode(result));
+            return Task.FromResult(
+                CbmMcpJson.FormatSearchCode(result, CbmVerbosityParser.Parse(verbosity)));
         }
         catch (ArgumentException ex)
         {
@@ -582,25 +594,20 @@ public sealed class CbmTools
         var databasePath = CbmCachePaths.GetProjectDatabasePath(project);
         if (!File.Exists(databasePath))
         {
-            throw new McpException(
-                "{\"error\":\"project not found or not indexed\",\"hint\":\"Call index_repository first.\"}");
+            throw new McpException(CbmMcpJson.FormatError(
+                "project not found or not indexed",
+                "Call index_repository first."));
         }
     }
 
     private static void EnsureProjectIndexed(string project)
     {
         EnsureProjectDatabaseExists(project);
-        using var store = OpenProjectStore(project);
+        using var store = CbmCachePaths.OpenProjectStore(project);
         if (store.GetProject(project) is null)
         {
-            throw new McpException(
-                "{\"error\":\"project not indexed — run index_repository first\"}");
+            throw new McpException(CbmMcpJson.FormatError(
+                "project not indexed — run index_repository first"));
         }
-    }
-
-    private static CbmStore OpenProjectStore(string projectName)
-    {
-        var databasePath = CbmCachePaths.GetProjectDatabasePath(projectName);
-        return CbmStore.OpenPath(databasePath);
     }
 }

@@ -19,4 +19,8 @@
     <ProjectReference Include="..\Cbm.Store\Cbm.Store.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Cbm.Tests" />
+  </ItemGroup>
+
 </Project>

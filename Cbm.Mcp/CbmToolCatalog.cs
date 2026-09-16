@@ -224,15 +224,17 @@ public static class CbmToolCatalog
                 new("case_sensitive", "bool", false, "When true, regex matching is case-sensitive."),
                 new("limit", "int", false, "Maximum results to return."),
                 new("offset", "int", false, "Number of matching nodes to skip before returning results."),
+                new("verbosity", "string", false, "Output detail: full (default, CBM parity) or compact (drops metric/property noise)."),
                 new("semantic_query", "string[]", false, "Unsupported compatibility parameter."),
             ],
-            "Use query for broad discovery, then narrow with label, name_pattern, qn_pattern, or file_pattern.",
+            "Use query for broad discovery, then narrow with label, name_pattern, qn_pattern, or file_pattern. Pass verbosity=compact to omit node metric properties.",
             """
             {
               "project": "Users-example-MyApp",
               "name_pattern": "Execute",
               "label": "Method",
-              "limit": 5
+              "limit": 5,
+              "verbosity": "compact"
             }
             """,
             """
@@ -263,7 +265,7 @@ public static class CbmToolCatalog
               }
             }
             """,
-            ["semantic_query is not supported in the C# port because embeddings are out of scope."]),
+            ["semantic_query is not supported in the C# port because embeddings are out of scope.", "compact omits node metric properties; omit verbosity or pass full for CBM-parity payloads."]),
         new(
             "get_code_snippet",
             "query",
@@ -272,13 +274,15 @@ public static class CbmToolCatalog
                 new("project", "string", true, "Indexed project name."),
                 new("qualified_name", "string", true, "Exact or suffix qualified_name to resolve."),
                 new("include_neighbors", "bool", false, "Include one-hop caller/callee names when available."),
+                new("verbosity", "string", false, "Output detail: full (default, CBM parity) or compact (drops metric/property noise)."),
             ],
-            "Use search_graph first to find a qualified_name, then call this tool for source context.",
+            "Use search_graph first to find a qualified_name, then call this tool for source context. Pass verbosity=compact to omit complexity metrics.",
             """
             {
               "project": "Users-example-MyApp",
               "qualified_name": "Sample.Worker.Execute",
-              "include_neighbors": true
+              "include_neighbors": true,
+              "verbosity": "compact"
             }
             """,
             """
@@ -303,7 +307,7 @@ public static class CbmToolCatalog
               }
             }
             """,
-            ["Ambiguous suffix matches return suggestions instead of source."]),
+            ["Ambiguous suffix matches return suggestions instead of source.", "compact omits node metric properties; omit verbosity or pass full for CBM-parity payloads."]),
         new(
             "search_code",
             "query",
@@ -317,13 +321,15 @@ public static class CbmToolCatalog
                 new("context", "int", false, "Context lines around each match in compact mode."),
                 new("regex", "bool", false, "When true, treat pattern as extended regex."),
                 new("limit", "int", false, "Maximum enriched results to return."),
+                new("verbosity", "string", false, "Output detail: full (default, CBM parity) or compact (omits raw_matches and redundant counters). Independent of mode."),
             ],
-            "Use this for text search when you want matches grouped by containing symbol and ranked by graph context.",
+            "Use this for text search when you want matches grouped by containing symbol and ranked by graph context. Pass verbosity=compact to omit raw_matches and redundant match counters.",
             """
             {
               "project": "Users-example-MyApp",
               "pattern": "Target",
-              "mode": "compact"
+              "mode": "compact",
+              "verbosity": "compact"
             }
             """,
             """
@@ -352,7 +358,7 @@ public static class CbmToolCatalog
               }
             }
             """,
-            ["Implemented as pure .NET scanning, not shell grep."]),
+            ["Implemented as pure .NET scanning, not shell grep.", "verbosity is independent of mode: mode selects source vs paths; verbosity drops redundant JSON metadata."]),
         new(
             "query_graph",
             "query",
@@ -434,12 +440,14 @@ public static class CbmToolCatalog
                 new("project", "string", true, "Indexed project name."),
                 new("path", "string", false, "Optional directory prefix to scope architecture."),
                 new("aspects", "string[]", false, "Aspects to include, such as structure, packages, clusters, runtime, or all."),
+                new("verbosity", "string", false, "Output detail: full (default, CBM parity) or compact (caps cluster lists and file_tree)."),
             ],
-            "Use this for package counts, dependency shape, hotspots, clusters, file tree, and optional runtime trace overlay.",
+            "Use this for package counts, dependency shape, hotspots, clusters, file tree, and optional runtime trace overlay. Pass verbosity=compact to cap cluster member lists and file_tree.",
             """
             {
               "project": "Users-example-MyApp",
-              "aspects": ["structure", "clusters"]
+              "aspects": ["structure", "clusters"],
+              "verbosity": "compact"
             }
             """,
             """
@@ -466,7 +474,7 @@ public static class CbmToolCatalog
               }
             }
             """,
-            ["Clustering runs on the CALLS graph only.", "Runtime data appears only after ingest_traces."]),
+            ["Clustering runs on the CALLS graph only.", "Runtime data appears only after ingest_traces.", "compact caps cluster nested lists and file_tree; scoped_total_* duplicates are omitted in all modes."]),
         new(
             "trace_path",
             "query",

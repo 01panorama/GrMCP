@@ -35,7 +35,7 @@ public sealed class SearchCodeService
         var searchMode = ParseSearchMode(mode);
         var patHasPipe = pattern.Contains('|', StringComparison.Ordinal);
 
-        using var store = OpenProjectStore(projectName);
+        using var store = CbmCachePaths.OpenProjectStore(projectName);
         var project = store.GetProject(projectName)
             ?? throw new InvalidOperationException("project not indexed");
 
@@ -504,17 +504,6 @@ public sealed class SearchCodeService
         }
 
         return SearchCodeMode.Compact;
-    }
-
-    private static CbmStore OpenProjectStore(string projectName)
-    {
-        var databasePath = CbmCachePaths.GetProjectDatabasePath(projectName);
-        if (!File.Exists(databasePath))
-        {
-            throw new FileNotFoundException($"Project database not found for '{projectName}'.", databasePath);
-        }
-
-        return CbmStore.OpenPath(databasePath);
     }
 
     private sealed class MutableSearchHit(CbmNode node, List<int> matchLines)
