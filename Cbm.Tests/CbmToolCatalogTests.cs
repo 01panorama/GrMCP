@@ -11,9 +11,10 @@ public sealed class CbmToolCatalogTests
     {
         var names = CbmToolCatalog.Tools.Select(tool => tool.Name).ToArray();
 
-        Assert.Equal(15, names.Length);
+        Assert.Equal(16, names.Length);
         Assert.Equal(names.Length, names.Distinct(StringComparer.Ordinal).Count());
         Assert.Contains("list_tools", names);
+        Assert.Contains("get_skill_reference", names);
         Assert.Contains("search_graph", names);
         Assert.Contains("detect_changes", names);
     }
@@ -90,6 +91,69 @@ public sealed class CbmToolCatalogTests
             Assert.Contains($"## {tool.Name}", markdown, StringComparison.Ordinal);
             Assert.Contains(tool.Description, markdown, StringComparison.Ordinal);
         }
+    }
+
+    [Fact]
+    public void RenderReferenceIndexesEveryCatalogTool()
+    {
+        var reference = CbmSkillReference.RenderMarkdown();
+
+        Assert.Contains("# CBM MCP Reference", reference, StringComparison.Ordinal);
+        foreach (var tool in CbmToolCatalog.Tools)
+        {
+            Assert.Contains($"`{tool.Name}`", reference, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void ReferenceListsVerbosityForEveryVerbosityTool()
+    {
+        // Scope to the Common Optional Params section; the per-category tables also
+        // contain rows that start with "| `search_graph` |".
+        var section = ExtractSection(CbmSkillReference.RenderMarkdown(), "## Common Optional Params");
+        var rows = section.Split('\n');
+        var verbosityTools = CbmToolCatalog.Tools
+            .Where(tool => tool.Parameters.Any(parameter => parameter.Name == "verbosity"))
+            .Select(tool => tool.Name);
+
+        foreach (var name in verbosityTools)
+        {
+            var row = rows.FirstOrDefault(line => line.StartsWith($"| `{name}` |", StringComparison.Ordinal));
+            Assert.NotNull(row);
+            Assert.Contains("`verbosity`", row, StringComparison.Ordinal);
+        }
+    }
+
+    private static string ExtractSection(string markdown, string heading)
+    {
+        var normalized = markdown.Replace("\r\n", "\n");
+        var start = normalized.IndexOf(heading, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"Heading not found: {heading}");
+        var next = normalized.IndexOf("\n## ", start + heading.Length, StringComparison.Ordinal);
+        return next < 0 ? normalized[start..] : normalized[start..next];
+    }
+
+    [Fact]
+    public void CommittedReferenceMatchesRenderer()
+    {
+        var repositoryRoot = ResolveRepositoryRoot();
+        var committed = File.ReadAllText(Path.Combine(repositoryRoot, "Skill", "reference.md"));
+
+        Assert.Equal(Normalize(CbmSkillReference.RenderMarkdown()), Normalize(committed));
+    }
+
+    [Fact]
+    public void CommittedToolsMarkdownMatchesRenderer()
+    {
+        var repositoryRoot = ResolveRepositoryRoot();
+        var committed = File.ReadAllText(Path.Combine(repositoryRoot, "tools.md"));
+
+        Assert.Equal(Normalize(CbmToolCatalog.RenderMarkdown()), Normalize(committed));
+    }
+
+    private static string Normalize(string text)
+    {
+        return text.Replace("\r\n", "\n");
     }
 
     private static string ResolveRepositoryRoot()

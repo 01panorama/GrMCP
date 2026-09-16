@@ -75,6 +75,30 @@ public static class CbmToolCatalog
             """,
             []),
         new(
+            "get_skill_reference",
+            "meta",
+            "Return the distilled CBM MCP skill reference as markdown.",
+            [],
+            "Use this to load the compact skill reference (tool index, required/optional params, verbosity guidance, and Cypher examples) in one call. Use list_tools for full per-tool docs.",
+            """
+            {}
+            """,
+            """
+            "# CBM MCP Reference\n\nDistilled skill reference for CBM MCP tools.\n\n## Tool Index\n..."
+            """,
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 16,
+              "method": "tools/call",
+              "params": {
+                "name": "get_skill_reference",
+                "arguments": {}
+              }
+            }
+            """,
+            ["Returns markdown only; use list_tools for structured json tool docs."]),
+        new(
             "list_projects",
             "lifecycle",
             "List indexed projects in the local CBM cache.",
@@ -702,7 +726,8 @@ public static class CbmToolCatalog
             AppendTool(builder, tool);
         }
 
-        return builder.ToString();
+        // Normalize to LF so emitted docs are byte-identical on macOS and Windows.
+        return builder.ToString().ReplaceLineEndings("\n");
     }
 
     private static void AppendTool(StringBuilder builder, CbmToolDefinition tool)

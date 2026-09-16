@@ -105,7 +105,8 @@ public sealed class CbmMcpSmokeTests
             Assert.Contains("manage_adr", toolNames);
             Assert.Contains("ingest_traces", toolNames);
             Assert.Contains("detect_changes", toolNames);
-            Assert.Equal(15, toolNames.Count);
+            Assert.Contains("get_skill_reference", toolNames);
+            Assert.Equal(16, toolNames.Count);
 
             var listToolsResponse = await server.CallToolAsync(
                 id: 30,
@@ -113,7 +114,7 @@ public sealed class CbmMcpSmokeTests
                 arguments: new { });
             var listToolsText = ExtractToolText(listToolsResponse);
             using var listToolsDocument = JsonDocument.Parse(listToolsText);
-            Assert.Equal(15, listToolsDocument.RootElement.GetProperty("total").GetInt32());
+            Assert.Equal(16, listToolsDocument.RootElement.GetProperty("total").GetInt32());
             var searchGraphTool = listToolsDocument.RootElement
                 .GetProperty("tools")
                 .EnumerateArray()
@@ -150,10 +151,22 @@ public sealed class CbmMcpSmokeTests
                 arguments: new { category = "meta" });
             var categoryListToolsText = ExtractToolText(categoryListToolsResponse);
             using var categoryListToolsDocument = JsonDocument.Parse(categoryListToolsText);
-            Assert.Equal(1, categoryListToolsDocument.RootElement.GetProperty("total").GetInt32());
-            Assert.Equal(
-                "list_tools",
-                categoryListToolsDocument.RootElement.GetProperty("tools")[0].GetProperty("name").GetString());
+            Assert.Equal(2, categoryListToolsDocument.RootElement.GetProperty("total").GetInt32());
+            var metaToolNames = categoryListToolsDocument.RootElement
+                .GetProperty("tools")
+                .EnumerateArray()
+                .Select(tool => tool.GetProperty("name").GetString())
+                .ToHashSet(StringComparer.Ordinal);
+            Assert.Contains("list_tools", metaToolNames);
+            Assert.Contains("get_skill_reference", metaToolNames);
+
+            var skillReferenceResponse = await server.CallToolAsync(
+                id: 34,
+                name: "get_skill_reference",
+                arguments: new { });
+            var skillReferenceText = ExtractToolText(skillReferenceResponse);
+            Assert.Contains("# CBM MCP Reference", skillReferenceText, StringComparison.Ordinal);
+            Assert.Contains("## Tool Index", skillReferenceText, StringComparison.Ordinal);
 
             var indexResponse = await server.CallToolAsync(
                 id: 3,

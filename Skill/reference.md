@@ -9,7 +9,7 @@ Distilled from the canonical repo docs in [tools.md](../../../tools.md). Use `li
 | lifecycle | `list_projects`, `index_repository`, `index_status`, `delete_project` |
 | query | `search_graph`, `get_code_snippet`, `search_code`, `query_graph`, `get_graph_schema`, `get_architecture`, `trace_path` |
 | mutation | `detect_changes`, `manage_adr`, `ingest_traces` |
-| meta | `list_tools` |
+| meta | `list_tools`, `get_skill_reference` |
 
 ## Index Result Shape
 
@@ -56,21 +56,26 @@ Distilled from the canonical repo docs in [tools.md](../../../tools.md). Use `li
 | `manage_adr` | `project` | `{"project":"Users-example-MyApp","mode":"update","content":"## PURPOSE\nDocument key decisions.\n"}` | No delete mode; `sections` is accepted but ignored by the handler. |
 | `ingest_traces` | `project`, `traces` | `{"project":"Users-example-MyApp","traces":[{"caller":"Run","callee":"Target","duration_ms":8.0,"count":1}]}` | Route observations do not create cross-service graph completeness. |
 
-## Meta Tool
+## Meta Tools
 
 | Tool | Required params | Example input | Caveat |
 | --- | --- | --- | --- |
 | `list_tools` | none | `{"format":"markdown","tools":["search_graph","get_code_snippet"]}` | Use filters (`name`, `tools`, `category`) to avoid loading the full catalog. |
+| `get_skill_reference` | none | `{}` | Returns this distilled reference as markdown; use `list_tools` for full per-tool docs. |
+
+## Output Verbosity
+
+`search_graph`, `get_code_snippet`, `search_code`, and `get_architecture` accept `verbosity`: `full` (default, CBM-parity payloads) or `compact` (fewer tokens). Choose once per call from the question type; do not call the same tool twice to switch modes.
 
 ## Common Optional Params
 
 | Tool | Useful optional params |
 | --- | --- |
-| `search_graph` | `query`, `label`, `name_pattern`, `qn_pattern`, `file_pattern`, `case_sensitive`, `limit`, `offset` |
-| `get_code_snippet` | `include_neighbors` |
-| `search_code` | `file_pattern`, `path_filter`, `mode`, `context`, `regex`, `limit` |
+| `search_graph` | `query`, `label`, `name_pattern`, `qn_pattern`, `file_pattern`, `case_sensitive`, `limit`, `offset`, `verbosity` |
+| `get_code_snippet` | `include_neighbors`, `verbosity` |
+| `search_code` | `file_pattern`, `path_filter`, `mode`, `context`, `regex`, `limit`, `verbosity` |
 | `query_graph` | `max_rows` |
-| `get_architecture` | `path`, `aspects` |
+| `get_architecture` | `path`, `aspects`, `verbosity` |
 | `trace_path` | `direction`, `depth`, `mode`, `risk_labels`, `include_tests`, `edge_types` |
 | `detect_changes` | `scope`, `depth`, `base_branch`, `since` |
 | `manage_adr` | `mode`, `content`, `sections` |

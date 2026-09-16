@@ -1,8 +1,19 @@
+using Cbm.Mcp;
 using Cbm.Mcp.Tools;
 using Cbm.Pipeline;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+
+if (args.Length >= 1 && args[0] == "--emit-docs")
+{
+    var root = args.Length >= 2 ? args[1] : Directory.GetCurrentDirectory();
+    // Renderers already emit LF; write bytes as-is so output matches on macOS and Windows.
+    File.WriteAllText(Path.Combine(root, "tools.md"), CbmToolCatalog.RenderMarkdown());
+    File.WriteAllText(Path.Combine(root, "Skill", "reference.md"), CbmSkillReference.RenderMarkdown());
+    await Console.Error.WriteLineAsync($"Wrote tools.md and Skill/reference.md to {root}");
+    return;
+}
 
 var builder = Host.CreateEmptyApplicationBuilder(settings: null);
 

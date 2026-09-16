@@ -68,6 +68,7 @@ Default investigation chain: `search_graph` (`verbosity=compact`) → `get_code_
 ## Tool Index
 
 - [`list_tools`](#list_tools) - Return rich documentation for every CBM MCP tool.
+- [`get_skill_reference`](#get_skill_reference) - Return the distilled CBM MCP skill reference as markdown.
 - [`list_projects`](#list_projects) - List indexed projects in the local CBM cache.
 - [`index_repository`](#index_repository) - Index a C# repository into the knowledge graph.
 - [`index_status`](#index_status) - Return node and edge counts plus status for an indexed project.
@@ -100,7 +101,7 @@ Category: `meta`
 
 ### Usage
 
-Use this first when you need examples, caveats, or parameter details beyond the MCP tools/list schema. Omit filters for the full catalog, pass `name` for one tool, `tools` for several exact tools, or `category` for a broad slice.
+Use this first when you need examples, caveats, or parameter details beyond the MCP tools/list schema. Omit filters for the full catalog, pass name for one tool, tools for several exact tools, or category for a broad slice.
 
 ### Example Input
 
@@ -147,6 +148,50 @@ Use this first when you need examples, caveats, or parameter details beyond the 
   }
 }
 ```
+
+## get_skill_reference
+
+Return the distilled CBM MCP skill reference as markdown.
+
+Category: `meta`
+
+### Parameters
+
+This tool has no parameters.
+
+### Usage
+
+Use this to load the compact skill reference (tool index, required/optional params, verbosity guidance, and Cypher examples) in one call. Use list_tools for full per-tool docs.
+
+### Example Input
+
+```json
+{}
+```
+
+### Example Output
+
+```json
+"# CBM MCP Reference\n\nDistilled skill reference for CBM MCP tools.\n\n## Tool Index\n..."
+```
+
+### MCP Invocation
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 16,
+  "method": "tools/call",
+  "params": {
+    "name": "get_skill_reference",
+    "arguments": {}
+  }
+}
+```
+
+### Caveats
+
+- Returns markdown only; use list_tools for structured json tool docs.
 
 ## list_projects
 
@@ -217,7 +262,7 @@ Category: `lifecycle`
 
 ### Usage
 
-Run this before query tools. The index is stored in `CBM_CACHE_DIR` when set, otherwise in the local CBM cache.
+Run this before query tools. The index is stored in CBM_CACHE_DIR when set, otherwise in the local CBM cache.
 
 ### Example Input
 
@@ -273,7 +318,7 @@ Category: `lifecycle`
 
 ### Usage
 
-Use this after `index_repository` to verify that a project is populated.
+Use this after index_repository to verify that a project is populated.
 
 ### Example Input
 
@@ -388,7 +433,7 @@ Category: `query`
 
 ### Usage
 
-Use `query` for broad discovery, then narrow with `label`, `name_pattern`, `qn_pattern`, or `file_pattern`. Pass `verbosity=compact` to omit node metric properties.
+Use query for broad discovery, then narrow with label, name_pattern, qn_pattern, or file_pattern. Pass verbosity=compact to omit node metric properties.
 
 ### Example Input
 
@@ -438,8 +483,8 @@ Use `query` for broad discovery, then narrow with `label`, `name_pattern`, `qn_p
 
 ### Caveats
 
-- `semantic_query` is not supported in the C# port because embeddings are out of scope.
-- `compact` omits node metric properties; omit verbosity or pass `full` for CBM-parity payloads.
+- semantic_query is not supported in the C# port because embeddings are out of scope.
+- compact omits node metric properties; omit verbosity or pass full for CBM-parity payloads.
 
 ## get_code_snippet
 
@@ -458,7 +503,7 @@ Category: `query`
 
 ### Usage
 
-Use `search_graph` first to find a `qualified_name`, then call this tool for source context. Pass `verbosity=compact` to omit complexity metrics.
+Use search_graph first to find a qualified_name, then call this tool for source context. Pass verbosity=compact to omit complexity metrics.
 
 ### Example Input
 
@@ -502,7 +547,7 @@ Use `search_graph` first to find a `qualified_name`, then call this tool for sou
 ### Caveats
 
 - Ambiguous suffix matches return suggestions instead of source.
-- `compact` omits node metric properties; omit verbosity or pass `full` for CBM-parity payloads.
+- compact omits node metric properties; omit verbosity or pass full for CBM-parity payloads.
 
 ## search_code
 
@@ -526,7 +571,7 @@ Category: `query`
 
 ### Usage
 
-Use this for text search when you want matches grouped by containing symbol and ranked by graph context. Pass `verbosity=compact` to omit `raw_matches` and redundant match counters.
+Use this for text search when you want matches grouped by containing symbol and ranked by graph context. Pass verbosity=compact to omit raw_matches and redundant match counters.
 
 ### Example Input
 
@@ -574,7 +619,7 @@ Use this for text search when you want matches grouped by containing symbol and 
 ### Caveats
 
 - Implemented as pure .NET scanning, not shell grep.
-- `verbosity` is independent of `mode`: `mode` selects source vs paths; `verbosity` drops redundant JSON metadata.
+- verbosity is independent of mode: mode selects source vs paths; verbosity drops redundant JSON metadata.
 
 ## query_graph
 
@@ -648,7 +693,7 @@ Category: `query`
 
 ### Usage
 
-Use this before writing `query_graph` queries to discover labels and edge types present in the project.
+Use this before writing query_graph queries to discover labels and edge types present in the project.
 
 ### Example Input
 
@@ -706,7 +751,7 @@ Category: `query`
 
 ### Usage
 
-Use this for package counts, dependency shape, hotspots, clusters, file tree, and optional runtime trace overlay. Pass `verbosity=compact` to cap cluster member lists and `file_tree`.
+Use this for package counts, dependency shape, hotspots, clusters, file tree, and optional runtime trace overlay. Pass verbosity=compact to cap cluster member lists and file_tree.
 
 ### Example Input
 
@@ -751,8 +796,8 @@ Use this for package counts, dependency shape, hotspots, clusters, file tree, an
 ### Caveats
 
 - Clustering runs on the CALLS graph only.
-- Runtime data appears only after `ingest_traces`.
-- `compact` caps cluster nested lists and `file_tree`; `scoped_total_*` duplicates are omitted in all modes.
+- Runtime data appears only after ingest_traces.
+- compact caps cluster nested lists and file_tree; scoped_total_* duplicates are omitted in all modes.
 
 ## trace_path
 
@@ -822,7 +867,7 @@ Use this after finding a method to inspect callers, callees, or nearby data-flow
 
 ### Caveats
 
-- `cross_service` is a no-op in the C# port because Route nodes are out of scope.
+- cross_service is a no-op in the C# port because Route nodes are out of scope.
 
 ## detect_changes
 
@@ -888,8 +933,8 @@ Use this in git repositories to find changed files, changed symbols, or impacted
 
 ### Caveats
 
-- Non-git repositories return a `not_a_git_repo` error.
-- `symbols` scope reports changed-file symbols only; use `impact` for propagation.
+- Non-git repositories return a not_a_git_repo error.
+- symbols scope reports changed-file symbols only; use impact for propagation.
 
 ## manage_adr
 
@@ -948,7 +993,7 @@ Use this to keep architecture context near the project graph for future agent se
 ### Caveats
 
 - There is no delete mode.
-- The `sections` argument is currently ignored by the handler.
+- The sections argument is currently ignored by the handler.
 
 ## ingest_traces
 

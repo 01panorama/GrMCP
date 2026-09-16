@@ -130,6 +130,13 @@ public sealed class CbmTools
         };
     }
 
+    [McpServerTool(Name = "get_skill_reference")]
+    [Description("Return the distilled CBM MCP skill reference as markdown.")]
+    public Task<string> GetSkillReferenceAsync()
+    {
+        return Task.FromResult(CbmSkillReference.RenderMarkdown());
+    }
+
     private static IReadOnlyList<string> BuildRequestedToolNames(string? name, string[]? tools)
     {
         var requestedToolNames = new List<string>();

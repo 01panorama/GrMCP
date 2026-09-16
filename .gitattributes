@@ -1,2 +1,7 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Generated docs are emitted with LF by CbmToolCatalog/CbmSkillReference.
+# Pin LF on checkout for all platforms so `--emit-docs` output matches byte-for-byte.
+tools.md text eol=lf
+Skill/reference.md text eol=lf
