@@ -368,11 +368,12 @@ Category: `query`
 | `case_sensitive` | `bool` | no | When true, regex matching is case-sensitive. |
 | `limit` | `int` | no | Maximum results to return. |
 | `offset` | `int` | no | Number of matching nodes to skip before returning results. |
+| `verbosity` | `string` | no | Output detail: full (default, CBM parity) or compact (drops metric/property noise). |
 | `semantic_query` | `string[]` | no | Unsupported compatibility parameter. |
 
 ### Usage
 
-Use `query` for broad discovery, then narrow with `label`, `name_pattern`, `qn_pattern`, or `file_pattern`.
+Use `query` for broad discovery, then narrow with `label`, `name_pattern`, `qn_pattern`, or `file_pattern`. Pass `verbosity=compact` to omit node metric properties.
 
 ### Example Input
 
@@ -381,7 +382,8 @@ Use `query` for broad discovery, then narrow with `label`, `name_pattern`, `qn_p
   "project": "Users-example-MyApp",
   "name_pattern": "Execute",
   "label": "Method",
-  "limit": 5
+  "limit": 5,
+  "verbosity": "compact"
 }
 ```
 
@@ -422,6 +424,7 @@ Use `query` for broad discovery, then narrow with `label`, `name_pattern`, `qn_p
 ### Caveats
 
 - `semantic_query` is not supported in the C# port because embeddings are out of scope.
+- `compact` omits node metric properties; omit verbosity or pass `full` for CBM-parity payloads.
 
 ## get_code_snippet
 
@@ -436,10 +439,11 @@ Category: `query`
 | `project` | `string` | yes | Indexed project name. |
 | `qualified_name` | `string` | yes | Exact or suffix qualified_name to resolve. |
 | `include_neighbors` | `bool` | no | Include one-hop caller/callee names when available. |
+| `verbosity` | `string` | no | Output detail: full (default, CBM parity) or compact (drops metric/property noise). |
 
 ### Usage
 
-Use `search_graph` first to find a `qualified_name`, then call this tool for source context.
+Use `search_graph` first to find a `qualified_name`, then call this tool for source context. Pass `verbosity=compact` to omit complexity metrics.
 
 ### Example Input
 
@@ -447,7 +451,8 @@ Use `search_graph` first to find a `qualified_name`, then call this tool for sou
 {
   "project": "Users-example-MyApp",
   "qualified_name": "Sample.Worker.Execute",
-  "include_neighbors": true
+  "include_neighbors": true,
+  "verbosity": "compact"
 }
 ```
 
@@ -482,6 +487,7 @@ Use `search_graph` first to find a `qualified_name`, then call this tool for sou
 ### Caveats
 
 - Ambiguous suffix matches return suggestions instead of source.
+- `compact` omits node metric properties; omit verbosity or pass `full` for CBM-parity payloads.
 
 ## search_code
 
@@ -501,10 +507,11 @@ Category: `query`
 | `context` | `int` | no | Context lines around each match in compact mode. |
 | `regex` | `bool` | no | When true, treat pattern as extended regex. |
 | `limit` | `int` | no | Maximum enriched results to return. |
+| `verbosity` | `string` | no | Output detail: full (default, CBM parity) or compact (omits raw_matches and redundant counters). Independent of mode. |
 
 ### Usage
 
-Use this for text search when you want matches grouped by containing symbol and ranked by graph context.
+Use this for text search when you want matches grouped by containing symbol and ranked by graph context. Pass `verbosity=compact` to omit `raw_matches` and redundant match counters.
 
 ### Example Input
 
@@ -512,7 +519,8 @@ Use this for text search when you want matches grouped by containing symbol and 
 {
   "project": "Users-example-MyApp",
   "pattern": "Target",
-  "mode": "compact"
+  "mode": "compact",
+  "verbosity": "compact"
 }
 ```
 
@@ -551,6 +559,7 @@ Use this for text search when you want matches grouped by containing symbol and 
 ### Caveats
 
 - Implemented as pure .NET scanning, not shell grep.
+- `verbosity` is independent of `mode`: `mode` selects source vs paths; `verbosity` drops redundant JSON metadata.
 
 ## query_graph
 
@@ -678,17 +687,19 @@ Category: `query`
 | `project` | `string` | yes | Indexed project name. |
 | `path` | `string` | no | Optional directory prefix to scope architecture. |
 | `aspects` | `string[]` | no | Aspects to include, such as structure, packages, clusters, runtime, or all. |
+| `verbosity` | `string` | no | Output detail: full (default, CBM parity) or compact (caps cluster lists and file_tree). |
 
 ### Usage
 
-Use this for package counts, dependency shape, hotspots, clusters, file tree, and optional runtime trace overlay.
+Use this for package counts, dependency shape, hotspots, clusters, file tree, and optional runtime trace overlay. Pass `verbosity=compact` to cap cluster member lists and `file_tree`.
 
 ### Example Input
 
 ```json
 {
   "project": "Users-example-MyApp",
-  "aspects": ["structure", "clusters"]
+  "aspects": ["structure", "clusters"],
+  "verbosity": "compact"
 }
 ```
 
@@ -726,6 +737,7 @@ Use this for package counts, dependency shape, hotspots, clusters, file tree, an
 
 - Clustering runs on the CALLS graph only.
 - Runtime data appears only after `ingest_traces`.
+- `compact` caps cluster nested lists and `file_tree`; `scoped_total_*` duplicates are omitted in all modes.
 
 ## trace_path
 
