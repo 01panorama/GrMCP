@@ -50,6 +50,21 @@ Typical workflow:
 
 The cache directory is `CBM_CACHE_DIR` when set, otherwise `~/.cache/graph-mcp-dotnet`.
 
+## Output verbosity
+
+`search_graph`, `get_code_snippet`, `search_code`, and `get_architecture` accept `verbosity`: `full` (default, CBM-parity payloads) or `compact` (fewer tokens). Other tools are unchanged. Do not pass `compact` on every call, and do not call the same tool twice (`compact` then `full`). Choose once from the question type.
+
+| Tool | Use `compact` when | Use `full` (or another tool) when |
+|------|--------------------|-----------------------------------|
+| `search_graph` | Finding a `qualified_name` for `get_code_snippet` or `trace_path`. Keeps name, label, file, lines, and degrees. | You need complexity metrics, `is_test` / `is_exported` / `is_entry_point`, or `return_type` on the hit list itself. Prefer `query_graph` or `get_architecture` hotspots for metric questions. |
+| `get_code_snippet` | Reading source (and optional neighbors). Metrics are redundant with the source. | Almost never. If you need graph metrics, use `query_graph` instead of re-fetching the snippet. |
+| `search_code` | You only need symbol-grouped `results` (node, file, `match_lines`). Independent of `mode`. | Hits may live outside a symbol (comments, unmatched files). Compact drops `raw_matches` and leaves only `raw_match_count` with no file/line/text. |
+| `get_architecture` | Scoped overview: pass `aspects` and/or `path`, and you can accept cluster `top_nodes` / `file_tree` capped at 8. | Full-repo map, complete cluster membership, or an unscoped `file_tree`. Truncation is silent (no `has_more`). Prefer `path` / `aspects` over compact-then-full. |
+
+Default investigation chain: `search_graph` (`verbosity=compact`) → `get_code_snippet` (`verbosity=compact`, `include_neighbors=true` when you need one-hop names) → `trace_path` or `query_graph`. `qualified_name` already includes parameter types, so compact search does not block overload disambiguation.
+
+`scoped_total_nodes` / `scoped_total_edges` are omitted in every `get_architecture` mode; they duplicated `total_nodes` / `total_edges`. `path`, `root_total_nodes`, and `root_total_edges` remain when `path` is set.
+
 ## Tool Index
 
 - [`list_tools`](#list_tools) - Return rich documentation for every CBM MCP tool.
