@@ -172,7 +172,7 @@ public sealed class IncrementalIndexService
         CSharpLoadedDocument document,
         IReadOnlySet<string> changedRelativePaths)
     {
-        if (string.IsNullOrWhiteSpace(document.FilePath))
+        if (string.IsNullOrWhiteSpace(document.FilePath) || !CSharpQualifiedName.IsWithinRepository(repositoryRoot, document.FilePath))
         {
             return false;
         }

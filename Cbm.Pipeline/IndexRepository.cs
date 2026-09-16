@@ -149,7 +149,7 @@ public sealed class IndexRepository
         {
             var loaded = await projectLoader.LoadAsync(workspaceEntryPoint, cancellationToken)
                 .ConfigureAwait(false);
-            var documents = loaded.Projects.SelectMany(project => project.Documents).ToArray();
+            var documents = loaded.Projects.SelectMany(project => project.Documents).Where(document => CSharpQualifiedName.IsWithinRepository(repositoryRoot, document.FilePath)).ToArray();
             var fingerprints = CollectWorkspaceFingerprints(repositoryRoot, documents).ToList();
             var trackedPaths = fingerprints
                 .Select(fingerprint => fingerprint.RelativePath)
@@ -161,7 +161,7 @@ public sealed class IndexRepository
                     .Select(project => project.FilePath)
                     .Where(path => !string.IsNullOrWhiteSpace(path))!);
 
-            foreach (var absolutePath in workspacePaths.Distinct(StringComparer.OrdinalIgnoreCase))
+            foreach (var absolutePath in workspacePaths.Where(path => CSharpQualifiedName.IsWithinRepository(repositoryRoot, path)).Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 var relativePath = CSharpQualifiedName.ToRelativePath(repositoryRoot, absolutePath);
                 if (trackedPaths.Add(relativePath))
