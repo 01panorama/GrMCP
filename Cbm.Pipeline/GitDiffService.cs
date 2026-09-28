@@ -71,7 +71,15 @@ public sealed class GitDiffService
         {
             threeDotResult = GitProcessRunner.RunInRepository(
                 repositoryRoot,
-                ["diff", "--name-only", threeDotRef]);
+                DiffArguments("--name-only", threeDotRef));
+        }
+        catch (GitProcessTimeoutException)
+        {
+            return Failure(
+                baseRef,
+                errorCode: "git_timeout",
+                hint: "Git diff did not complete in time. Try a narrower ref or re-run later.",
+                headSha: context.HeadSha);
         }
         catch (Exception ex) when (ex is Win32Exception or FileNotFoundException)
         {
@@ -87,15 +95,25 @@ public sealed class GitDiffService
             changedPaths.Add(line);
         }
 
-        GitProcessRunner.GitRunResult? workingTreeResult = null;
         if (includeWorkingTree)
         {
-            workingTreeResult = GitProcessRunner.RunInRepository(
-                repositoryRoot,
-                ["diff", "--name-only"]);
-            foreach (var line in GitProcessRunner.ReadOutputLines(workingTreeResult.StandardOutput))
+            try
             {
-                changedPaths.Add(line);
+                var workingTreeResult = GitProcessRunner.RunInRepository(
+                    repositoryRoot,
+                    DiffArguments("--name-only"));
+                foreach (var line in GitProcessRunner.ReadOutputLines(workingTreeResult.StandardOutput))
+                {
+                    changedPaths.Add(line);
+                }
+            }
+            catch (GitProcessTimeoutException)
+            {
+                return Failure(
+                    baseRef,
+                    errorCode: "git_timeout",
+                    hint: "Git diff did not complete in time. Try a narrower ref or re-run later.",
+                    headSha: context.HeadSha);
             }
         }
 
@@ -113,20 +131,31 @@ public sealed class GitDiffService
 
         if (includeStatus)
         {
-            var statusByPath = new Dictionary<string, CbmGitChangedFile>(StringComparer.Ordinal);
-            var statusResult = GitProcessRunner.RunInRepository(
-                repositoryRoot,
-                ["diff", "--name-status", threeDotRef]);
-            foreach (var file in GitDiffNameStatusParser.Parse(statusResult.StandardOutput))
+            try
             {
-                statusByPath[file.Path] = file;
-            }
+                var statusByPath = new Dictionary<string, CbmGitChangedFile>(StringComparer.Ordinal);
+                var statusResult = GitProcessRunner.RunInRepository(
+                    repositoryRoot,
+                    DiffArguments("--name-status", threeDotRef));
+                foreach (var file in GitDiffNameStatusParser.Parse(statusResult.StandardOutput))
+                {
+                    statusByPath[file.Path] = file;
+                }
 
-            changedFilesWithStatus = changedFiles
-                .Select(path => statusByPath.TryGetValue(path, out var file)
-                    ? file
-                    : new CbmGitChangedFile(path, CbmGitChangeStatus.Modified))
-                .ToArray();
+                changedFilesWithStatus = changedFiles
+                    .Select(path => statusByPath.TryGetValue(path, out var file)
+                        ? file
+                        : new CbmGitChangedFile(path, CbmGitChangeStatus.Modified))
+                    .ToArray();
+            }
+            catch (GitProcessTimeoutException)
+            {
+                return Failure(
+                    baseRef,
+                    errorCode: "git_timeout",
+                    hint: "Git diff did not complete in time. Try a narrower ref or re-run later.",
+                    headSha: context.HeadSha);
+            }
         }
 
         return new CbmGitDiffResult(
@@ -137,6 +166,16 @@ public sealed class GitDiffService
             HeadSha: context.HeadSha,
             ChangedFiles: changedFiles,
             ChangedFilesWithStatus: changedFilesWithStatus);
+    }
+
+    private static string[] DiffArguments(string outputMode, string? threeDotRef = null)
+    {
+        if (threeDotRef is null)
+        {
+            return ["diff", "--no-ext-diff", "--find-renames=100%", outputMode];
+        }
+
+        return ["diff", "--no-ext-diff", "--find-renames=100%", outputMode, threeDotRef];
     }
 
     private static CbmGitDiffResult Failure(
