@@ -71,12 +71,15 @@ public sealed record CypherFuncArg(
     string? Property,
     string? Literal);
 
+public sealed record CypherOrderByItem(
+    string Expression,
+    string? Direction);
+
 public sealed record CypherReturnClause(
     IReadOnlyList<CypherReturnItem> Items,
     bool Distinct,
     bool Star,
-    string? OrderBy,
-    string? OrderDirection,
+    IReadOnlyList<CypherOrderByItem> OrderBy,
     int Skip,
     int Limit);
 

@@ -725,7 +725,7 @@ public sealed partial class CbmStore : IDisposable
             if (rows.Count >= maxRows)
             {
                 throw new InvalidOperationException(
-                    "result exceeded 100k rows — use narrower filters or add LIMIT");
+                    $"result exceeded {maxRows.ToString(CultureInfo.InvariantCulture)} rows — use narrower filters or add LIMIT");
             }
 
             var row = new string[reader.FieldCount];

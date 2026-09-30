@@ -33,7 +33,7 @@ public static class CypherExecutor
         {
             throw new CypherExecuteException(ex.Message, ex);
         }
-        catch (InvalidOperationException ex) when (ex.Message.Contains("100k", StringComparison.Ordinal))
+        catch (InvalidOperationException ex) when (ex.Message.Contains("result exceeded", StringComparison.Ordinal))
         {
             throw new CypherExecuteException(ex.Message, ex);
         }

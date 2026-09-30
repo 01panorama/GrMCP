@@ -134,6 +134,24 @@ public sealed class CbmCypherSqlPlannerTests
     }
 
     [Fact]
+    public void PlansMultiKeyOrderByWithLimit()
+    {
+        var plan = CypherSqlPlanner.Plan(
+            """
+            MATCH (m:Method)
+            RETURN m.qualified_name, m.cognitive
+            ORDER BY m.cognitive DESC, m.qualified_name ASC
+            LIMIT 10
+            """,
+            Project);
+
+        Assert.Contains("ORDER BY ", plan.Sql, StringComparison.Ordinal);
+        Assert.Contains(" DESC", plan.Sql, StringComparison.Ordinal);
+        Assert.Contains(" ASC", plan.Sql, StringComparison.Ordinal);
+        Assert.Contains("LIMIT 10", plan.Sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PlansAggregateReturnWithWholeNodeGroupBy()
     {
         var plan = CypherSqlPlanner.Plan(

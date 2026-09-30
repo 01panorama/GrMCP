@@ -416,14 +416,23 @@ public static class CypherSqlPlanner
                 return;
             }
 
-            if (!string.IsNullOrWhiteSpace(ret.OrderBy))
+            if (ret.OrderBy.Count > 0)
             {
                 sql.Append(" ORDER BY ");
-                sql.Append(PlanOrderBy(ret.OrderBy));
-                if (!string.IsNullOrWhiteSpace(ret.OrderDirection))
+                for (var index = 0; index < ret.OrderBy.Count; index++)
                 {
-                    sql.Append(' ');
-                    sql.Append(ret.OrderDirection);
+                    if (index > 0)
+                    {
+                        sql.Append(", ");
+                    }
+
+                    var item = ret.OrderBy[index];
+                    sql.Append(PlanOrderBy(item.Expression));
+                    if (!string.IsNullOrWhiteSpace(item.Direction))
+                    {
+                        sql.Append(' ');
+                        sql.Append(item.Direction);
+                    }
                 }
             }
 

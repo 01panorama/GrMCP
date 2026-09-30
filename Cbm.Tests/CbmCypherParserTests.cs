@@ -114,9 +114,39 @@ public sealed class CbmCypherParserTests
         var ret = query.Return!;
         Assert.Equal("COUNT", ret.Items[0].Function);
         Assert.Equal("cnt", ret.Items[0].Alias);
-        Assert.Equal("cnt", ret.OrderBy);
-        Assert.Equal("DESC", ret.OrderDirection);
+        Assert.Single(ret.OrderBy);
+        Assert.Equal("cnt", ret.OrderBy[0].Expression);
+        Assert.Equal("DESC", ret.OrderBy[0].Direction);
         Assert.Equal(10, ret.Limit);
+    }
+
+    [Fact]
+    public void ParsesMultiKeyOrderByWithLimit()
+    {
+        var query = CypherParserFrontEnd.Parse(
+            """
+            MATCH (m:Method)
+            RETURN m.qualified_name, m.cognitive
+            ORDER BY m.cognitive DESC, m.qualified_name ASC
+            LIMIT 10
+            """);
+
+        var ret = query.Return!;
+        Assert.Equal(2, ret.OrderBy.Count);
+        Assert.Equal("m.cognitive", ret.OrderBy[0].Expression);
+        Assert.Equal("DESC", ret.OrderBy[0].Direction);
+        Assert.Equal("m.qualified_name", ret.OrderBy[1].Expression);
+        Assert.Equal("ASC", ret.OrderBy[1].Direction);
+        Assert.Equal(10, ret.Limit);
+    }
+
+    [Fact]
+    public void RejectsTrailingTokensAfterQuery()
+    {
+        var exception = Assert.Throws<CypherParseException>(() =>
+            CypherParserFrontEnd.Parse("MATCH (m:Method) RETURN m.name LIMIT 10 EXTRA"));
+
+        Assert.Contains("unexpected tokens", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -7,7 +7,16 @@ public static class CypherParserFrontEnd
     public static CypherQuery Parse(string query)
     {
         var tokens = CypherLexer.Lex(query);
-        return new CypherParser(tokens).ParseQuery();
+        var parser = new CypherParser(tokens);
+        var ast = parser.ParseQuery();
+        if (parser.PeekType() != CypherTokenType.Eof)
+        {
+            throw new CypherParseException(
+                "unexpected tokens after query",
+                parser.PeekPosition());
+        }
+
+        return ast;
     }
 }
 
@@ -102,20 +111,26 @@ internal sealed class CypherParser
             while (Match(CypherTokenType.Comma));
         }
 
-        string? orderBy = null;
-        string? orderDirection = null;
+        var orderBy = new List<CypherOrderByItem>();
         if (Match(CypherTokenType.Order))
         {
             Expect(CypherTokenType.By);
-            orderBy = ParseOrderByExpression();
-            if (Match(CypherTokenType.Asc))
+            do
             {
-                orderDirection = "ASC";
+                var expression = ParseOrderByExpression();
+                string? direction = null;
+                if (Match(CypherTokenType.Asc))
+                {
+                    direction = "ASC";
+                }
+                else if (Match(CypherTokenType.Desc))
+                {
+                    direction = "DESC";
+                }
+
+                orderBy.Add(new CypherOrderByItem(expression, direction));
             }
-            else if (Match(CypherTokenType.Desc))
-            {
-                orderDirection = "DESC";
-            }
+            while (Match(CypherTokenType.Comma));
         }
 
         var skip = 0;
@@ -130,7 +145,7 @@ internal sealed class CypherParser
             limit = ParseIntegerLiteral("LIMIT");
         }
 
-        return new CypherReturnClause(items, distinct, star, orderBy, orderDirection, skip, limit);
+        return new CypherReturnClause(items, distinct, star, orderBy, skip, limit);
     }
 
     private CypherReturnItem ParseReturnItem()
@@ -684,6 +699,10 @@ internal sealed class CypherParser
 
         return int.Parse(Advance().Text, System.Globalization.CultureInfo.InvariantCulture);
     }
+
+    internal CypherTokenType PeekType() => Peek().Type;
+
+    internal int PeekPosition() => Peek().Position;
 
     private CypherToken Peek() => tokens[Math.Min(position, tokens.Count - 1)];
 
