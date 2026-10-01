@@ -184,6 +184,58 @@ public sealed class CbmCypherParserTests
     }
 
     [Fact]
+    public void ParsesInfixNotContainsOnProperty()
+    {
+        var query = CypherParserFrontEnd.Parse(
+            """
+            MATCH (m:Method)
+            WHERE m.file_path NOT CONTAINS "Reference.cs"
+            RETURN m.name
+            """);
+
+        var condition = query.Where!.Root!;
+        Assert.Equal(CypherExprKind.Condition, condition.Kind);
+        Assert.Equal("CONTAINS", condition.Condition!.Operator);
+        Assert.Equal("file_path", condition.Condition.Property);
+        Assert.True(condition.Condition.Negated);
+        Assert.Equal("Reference.cs", condition.Condition.Value);
+    }
+
+    [Fact]
+    public void ParsesPrefixNotContainsOnProperty()
+    {
+        var query = CypherParserFrontEnd.Parse(
+            """
+            MATCH (m:Method)
+            WHERE NOT m.file_path CONTAINS "Reference.cs"
+            RETURN m.name
+            """);
+
+        var root = query.Where!.Root!;
+        Assert.Equal(CypherExprKind.Not, root.Kind);
+
+        var condition = root.Left!;
+        Assert.Equal(CypherExprKind.Condition, condition.Kind);
+        Assert.Equal("CONTAINS", condition.Condition!.Operator);
+        Assert.False(condition.Condition.Negated);
+    }
+
+    [Fact]
+    public void ParsesInfixNotStartsWithOnProperty()
+    {
+        var query = CypherParserFrontEnd.Parse(
+            """
+            MATCH (n:Method)
+            WHERE n.qualified_name NOT STARTS WITH "Tests."
+            RETURN n.name
+            """);
+
+        var condition = query.Where!.Root!;
+        Assert.Equal("STARTS WITH", condition.Condition!.Operator);
+        Assert.True(condition.Condition.Negated);
+    }
+
+    [Fact]
     public void RejectsMalformedExistsPattern()
     {
         var exception = Assert.Throws<CypherParseException>(() =>

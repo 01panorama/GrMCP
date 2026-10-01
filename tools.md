@@ -632,7 +632,7 @@ Category: `query`
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `project` | `string` | yes | Indexed project name. |
-| `query` | `string` | yes | Cypher query string. |
+| `query` | `string` | yes | Cypher query string (read-only subset; call get_skill_reference for grammar). |
 | `max_rows` | `int` | no | Maximum rows to return. Zero uses the 100k ceiling. |
 
 ### Usage
@@ -677,7 +677,8 @@ Use this for precise graph questions over labels, edge types, and node propertie
 
 ### Caveats
 
-- Only the supported read-only Cypher subset is accepted.
+- Read-only Cypher subset only — not full Neo4j Cypher.
+- Grammar and examples: call `get_skill_reference` (Cypher subset and Cypher examples sections).
 
 ## get_graph_schema
 
@@ -707,11 +708,29 @@ Use this before writing query_graph queries to discover labels and edge types pr
 
 ```json
 {
+  "columns": ["name", "qualified_name", "label", "file_path", "start_line", "end_line"],
   "node_labels": [
-    { "label": "Method", "count": 42, "properties": [] }
+    {
+      "label": "Method",
+      "count": 42,
+      "properties": {
+        "integer": ["param_count"],
+        "boolean": ["is_test"],
+        "text": ["signature"]
+      }
+    },
+    { "label": "Constructor", "count": 11, "properties_same_as": "Method" }
   ],
   "edge_types": [
-    { "type": "CALLS", "count": 64, "properties": [] }
+    {
+      "type": "CALLS",
+      "count": 64,
+      "properties": {
+        "integer": ["arg_count"],
+        "real": ["confidence"],
+        "text": ["strategy"]
+      }
+    }
   ]
 }
 ```
@@ -732,7 +751,8 @@ Use this before writing query_graph queries to discover labels and edge types pr
 
 ### Caveats
 
-- Property lists are currently empty placeholders in this C# port.
+- JSON property keys are filled from the index-time catalog; re-index after upgrading an old cache file.
+- Counts are nodes per label or edges per type, not per-key presence.
 
 ## get_architecture
 

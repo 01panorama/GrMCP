@@ -143,25 +143,203 @@ internal static class CbmMcpJson
             Options);
     }
 
-    internal static string FormatGraphSchema(CbmGraphSchema schema)
+    private static readonly string[] GraphSchemaNodeColumns =
+    [
+        "name",
+        "qualified_name",
+        "label",
+        "file_path",
+        "start_line",
+        "end_line",
+    ];
+
+    private static readonly string[] GraphSchemaPropertyTypeOrder =
+    [
+        "integer",
+        "real",
+        "boolean",
+        "text",
+        "mixed",
+    ];
+
+    internal static string FormatGraphSchema(CbmGraphSchemaResponse schema)
     {
+        var counts = schema.Counts;
+        var catalog = schema.Properties;
+        if (!SchemaPropertyCatalogEnabled() || catalog.Count == 0)
+        {
+            return JsonSerializer.Serialize(
+                new
+                {
+                    node_labels = counts.NodeLabels.Select(label => new
+                    {
+                        label = label.Label,
+                        count = label.Count,
+                        properties = Array.Empty<string>(),
+                    }),
+                    edge_types = counts.EdgeTypes.Select(edge => new
+                    {
+                        type = edge.Type,
+                        count = edge.Count,
+                        properties = Array.Empty<string>(),
+                    }),
+                },
+                Options);
+        }
+
+        var nodeCatalog = catalog.Where(row => row.Owner == "node").ToLookup(row => row.Kind);
+        var edgeCatalog = catalog.Where(row => row.Owner == "edge").ToLookup(row => row.Kind);
+        var nodeCanonical = BuildSchemaPropertyCanonical(
+            counts.NodeLabels.Select(label => label.Label),
+            nodeCatalog);
+        var edgeCanonical = BuildSchemaPropertyCanonical(
+            counts.EdgeTypes.Select(edge => edge.Type),
+            edgeCatalog);
+
         return JsonSerializer.Serialize(
-            new
+            new Dictionary<string, object?>
             {
-                node_labels = schema.NodeLabels.Select(label => new
-                {
-                    label = label.Label,
-                    count = label.Count,
-                    properties = Array.Empty<string>(),
-                }),
-                edge_types = schema.EdgeTypes.Select(edge => new
-                {
-                    type = edge.Type,
-                    count = edge.Count,
-                    properties = Array.Empty<string>(),
-                }),
+                ["columns"] = GraphSchemaNodeColumns,
+                ["node_labels"] = counts.NodeLabels
+                    .Select(label => FormatSchemaNodeLabel(label, nodeCatalog, nodeCanonical))
+                    .ToArray(),
+                ["edge_types"] = counts.EdgeTypes
+                    .Select(edge => FormatSchemaEdgeType(edge, edgeCatalog, edgeCanonical))
+                    .ToArray(),
             },
             Options);
+    }
+
+    internal static bool SchemaPropertyCatalogEnabled()
+    {
+        var raw = Environment.GetEnvironmentVariable("CBM_SCHEMA_PROPERTIES");
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return true;
+        }
+
+        raw = raw.Trim();
+        return !raw.Equals("0", StringComparison.OrdinalIgnoreCase)
+            && !raw.Equals("false", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static Dictionary<string, string> BuildSchemaPropertyCanonical(
+        IEnumerable<string> kindsInOrder,
+        ILookup<string, CbmSchemaProperty> catalog)
+    {
+        var canonical = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var kind in kindsInOrder)
+        {
+            var properties = catalog[kind].ToList();
+            if (properties.Count == 0)
+            {
+                continue;
+            }
+
+            var signature = BuildSchemaPropertySignature(properties);
+            if (!canonical.ContainsKey(signature))
+            {
+                canonical[signature] = kind;
+            }
+        }
+
+        return canonical;
+    }
+
+    private static string BuildSchemaPropertySignature(IReadOnlyList<CbmSchemaProperty> properties)
+    {
+        return string.Join(
+            "\n",
+            properties
+                .OrderBy(property => property.ValueType, StringComparer.Ordinal)
+                .ThenBy(property => property.PropertyKey, StringComparer.Ordinal)
+                .Select(property => property.ValueType + "\0" + property.PropertyKey));
+    }
+
+    private static Dictionary<string, object?> FormatSchemaNodeLabel(
+        CbmLabelSchema label,
+        ILookup<string, CbmSchemaProperty> catalog,
+        IReadOnlyDictionary<string, string> canonicalBySignature)
+    {
+        return FormatSchemaKindEntry(
+            label.Label,
+            label.Count,
+            catalog[label.Label].ToList(),
+            canonicalBySignature,
+            isEdge: false);
+    }
+
+    private static Dictionary<string, object?> FormatSchemaEdgeType(
+        CbmEdgeTypeSchema edge,
+        ILookup<string, CbmSchemaProperty> catalog,
+        IReadOnlyDictionary<string, string> canonicalBySignature)
+    {
+        return FormatSchemaKindEntry(
+            edge.Type,
+            edge.Count,
+            catalog[edge.Type].ToList(),
+            canonicalBySignature,
+            isEdge: true);
+    }
+
+    private static Dictionary<string, object?> FormatSchemaKindEntry(
+        string kind,
+        int count,
+        IReadOnlyList<CbmSchemaProperty> properties,
+        IReadOnlyDictionary<string, string> canonicalBySignature,
+        bool isEdge)
+    {
+        var entry = new Dictionary<string, object?>
+        {
+            [isEdge ? "type" : "label"] = kind,
+            ["count"] = count,
+        };
+
+        if (properties.Count == 0)
+        {
+            return entry;
+        }
+
+        var signature = BuildSchemaPropertySignature(properties);
+        if (canonicalBySignature.TryGetValue(signature, out var canonicalKind)
+            && !string.Equals(canonicalKind, kind, StringComparison.Ordinal))
+        {
+            entry["properties_same_as"] = canonicalKind;
+            return entry;
+        }
+
+        entry["properties"] = GroupSchemaPropertiesByType(properties);
+        return entry;
+    }
+
+    private static Dictionary<string, string[]> GroupSchemaPropertiesByType(
+        IReadOnlyList<CbmSchemaProperty> properties)
+    {
+        var grouped = properties
+            .GroupBy(property => property.ValueType, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(property => property.PropertyKey)
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(key => key, StringComparer.Ordinal)
+                    .ToArray(),
+                StringComparer.Ordinal);
+
+        var ordered = new Dictionary<string, string[]>(StringComparer.Ordinal);
+        foreach (var valueType in GraphSchemaPropertyTypeOrder)
+        {
+            if (grouped.Remove(valueType, out var keys))
+            {
+                ordered[valueType] = keys;
+            }
+        }
+
+        foreach (var pair in grouped.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        {
+            ordered[pair.Key] = pair.Value;
+        }
+
+        return ordered;
     }
 
     internal static string FormatQueryGraph(CbmCypherQueryResult result)

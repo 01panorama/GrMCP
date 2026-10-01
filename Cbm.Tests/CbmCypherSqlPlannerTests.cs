@@ -52,6 +52,21 @@ public sealed class CbmCypherSqlPlannerTests
     }
 
     [Fact]
+    public void PlansInfixNotContainsFilter()
+    {
+        var plan = CypherSqlPlanner.Plan(
+            """
+            MATCH (m:Method)
+            WHERE m.file_path NOT CONTAINS "Reference.cs"
+            RETURN m.name
+            """,
+            Project);
+
+        Assert.Contains("(NOT INSTR(m.file_path, $", plan.Sql, StringComparison.Ordinal);
+        Assert.Contains(") > 0)", plan.Sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PlansVariableLengthRelationshipWithRecursiveCte()
     {
         var plan = CypherSqlPlanner.Plan(

@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Cbm.Graph;
+using Cbm.Mcp;
 using Cbm.Store;
 
 namespace Cbm.Tests;
@@ -161,6 +163,146 @@ public sealed class CbmArchitectureStoreTests
         Assert.Equal(string.Empty, CbmQualifiedNameHelpers.QnToPackage("standalone"));
     }
 
+    [Fact]
+    public void RebuildSchemaProperties_FoldsTrueAndFalseToBoolean()
+    {
+        using var store = CbmStore.OpenMemory();
+        store.UpsertProject(Project, "/tmp/test");
+        store.UpsertNode(MethodNode(Project, "A", "test.A", "a.cs", """{"flag":true}"""));
+        store.UpsertNode(MethodNode(Project, "B", "test.B", "b.cs", """{"flag":false}"""));
+
+        store.RebuildSchemaProperties(Project);
+
+        var flag = store.GetSchemaProperties(Project).Single(row => row.PropertyKey == "flag");
+        Assert.Equal("boolean", flag.ValueType);
+    }
+
+    [Fact]
+    public void RebuildSchemaProperties_StoresMixedWhenTypesDiffer()
+    {
+        using var store = CbmStore.OpenMemory();
+        store.UpsertProject(Project, "/tmp/test");
+        store.UpsertNode(MethodNode(Project, "A", "test.A", "a.cs", """{"x":1}"""));
+        store.UpsertNode(MethodNode(Project, "B", "test.B", "b.cs", """{"x":"text"}"""));
+        store.UpsertNode(MethodNode(Project, "C", "test.C", "c.cs", """{"y":true}"""));
+        store.UpsertNode(MethodNode(Project, "D", "test.D", "d.cs", """{"y":1}"""));
+
+        store.RebuildSchemaProperties(Project);
+
+        Assert.Equal("mixed", store.GetSchemaProperties(Project).Single(row => row.PropertyKey == "x").ValueType);
+        Assert.Equal("mixed", store.GetSchemaProperties(Project).Single(row => row.PropertyKey == "y").ValueType);
+    }
+
+    [Fact]
+    public void FormatGraphSchema_UsesPropertiesSameAsForIdenticalLabels()
+    {
+        using var store = CbmStore.OpenMemory();
+        store.UpsertProject(Project, "/tmp/test");
+        const string shared = """{"score":1,"enabled":true,"name":"n"}""";
+        store.UpsertNode(MethodNode(Project, "M1", "test.M1", "m.cs", shared));
+        store.UpsertNode(MethodNode(Project, "M2", "test.M2", "m.cs", shared));
+        store.UpsertNode(LabelledNode(Project, "Constructor", "C", "test.C", "c.cs", shared));
+        store.RebuildSchemaProperties(Project);
+
+        var response = new CbmGraphSchemaResponse(
+            store.GetSchemaCounts(Project),
+            store.GetSchemaProperties(Project));
+        using var document = JsonDocument.Parse(CbmMcpJson.FormatGraphSchema(response));
+        var labels = document.RootElement.GetProperty("node_labels").EnumerateArray().ToArray();
+        var method = labels.Single(label => label.GetProperty("label").GetString() == "Method");
+        var constructor = labels.Single(label => label.GetProperty("label").GetString() == "Constructor");
+        Assert.True(method.TryGetProperty("properties", out _));
+        Assert.False(method.TryGetProperty("properties_same_as", out _));
+        Assert.Equal("Method", constructor.GetProperty("properties_same_as").GetString());
+        Assert.False(constructor.TryGetProperty("properties", out _));
+    }
+
+    [Fact]
+    public void FormatGraphSchema_DoesNotCollapseCallsOntoDefaultEdges()
+    {
+        using var store = CbmStore.OpenMemory();
+        store.UpsertProject(Project, "/tmp/test");
+        var sourceId = store.UpsertNode(MethodNode(Project, "Src", "test.Src", "src.cs"));
+        var targetId = store.UpsertNode(MethodNode(Project, "Dst", "test.Dst", "dst.cs"));
+        store.UpsertEdge(TypedEdge(
+            sourceId,
+            targetId,
+            "USAGE",
+            """{"confidence":1.0,"strategy":"roslyn"}"""));
+        store.UpsertEdge(TypedEdge(
+            sourceId,
+            targetId,
+            "CALLS",
+            """{"confidence":1.0,"strategy":"roslyn","arg_count":0,"loop_depth":0,"branch_depth":0}"""));
+        store.UpsertEdge(TypedEdge(sourceId, targetId, "DEFINES", "{}"));
+        store.RebuildSchemaProperties(Project);
+
+        var response = new CbmGraphSchemaResponse(
+            store.GetSchemaCounts(Project),
+            store.GetSchemaProperties(Project));
+        using var document = JsonDocument.Parse(CbmMcpJson.FormatGraphSchema(response));
+        var edges = document.RootElement.GetProperty("edge_types").EnumerateArray().ToArray();
+        var calls = edges.Single(edge => edge.GetProperty("type").GetString() == "CALLS");
+        var usage = edges.Single(edge => edge.GetProperty("type").GetString() == "USAGE");
+        var defines = edges.Single(edge => edge.GetProperty("type").GetString() == "DEFINES");
+        Assert.True(calls.TryGetProperty("properties", out var callProperties));
+        Assert.Contains("arg_count", callProperties.GetProperty("integer").EnumerateArray().Select(value => value.GetString()));
+        Assert.False(calls.TryGetProperty("properties_same_as", out _));
+        Assert.True(usage.TryGetProperty("properties", out _));
+        Assert.False(usage.TryGetProperty("properties_same_as", out _));
+        Assert.False(defines.TryGetProperty("properties", out _));
+        Assert.False(defines.TryGetProperty("properties_same_as", out _));
+    }
+
+    [Fact]
+    public void FormatGraphSchema_FlagOff_EmitsEmptyPropertyArrays()
+    {
+        using var store = CbmStore.OpenMemory();
+        store.UpsertProject(Project, "/tmp/test");
+        store.UpsertNode(MethodNode(Project, "M", "test.M", "m.cs", """{"n":1}"""));
+        store.RebuildSchemaProperties(Project);
+        Assert.NotEmpty(store.GetSchemaProperties(Project));
+
+        var response = new CbmGraphSchemaResponse(
+            store.GetSchemaCounts(Project),
+            store.GetSchemaProperties(Project));
+
+        foreach (var flag in new[] { "0", "false" })
+        {
+            Environment.SetEnvironmentVariable("CBM_SCHEMA_PROPERTIES", flag);
+            try
+            {
+                using var document = JsonDocument.Parse(CbmMcpJson.FormatGraphSchema(response));
+                Assert.False(document.RootElement.TryGetProperty("columns", out _));
+                var label = document.RootElement.GetProperty("node_labels")[0];
+                Assert.Equal(JsonValueKind.Array, label.GetProperty("properties").ValueKind);
+                Assert.Equal(0, label.GetProperty("properties").GetArrayLength());
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("CBM_SCHEMA_PROPERTIES", null);
+            }
+        }
+    }
+
+    [Fact]
+    public void FormatArchitecture_OmitsPropertiesOnLabelsAndEdges()
+    {
+        using var store = CreateArchitectureStore();
+        var result = store.GetArchitecture(Project, aspects: ["structure", "dependencies"]);
+        using var document = JsonDocument.Parse(CbmMcpJson.FormatArchitecture(result));
+
+        foreach (var label in document.RootElement.GetProperty("node_labels").EnumerateArray())
+        {
+            Assert.False(label.TryGetProperty("properties", out _));
+        }
+
+        foreach (var edge in document.RootElement.GetProperty("edge_types").EnumerateArray())
+        {
+            Assert.False(edge.TryGetProperty("properties", out _));
+        }
+    }
+
     private static CbmStore CreateArchitectureStore()
     {
         var store = CbmStore.OpenMemory();
@@ -268,6 +410,39 @@ public sealed class CbmArchitectureStoreTests
             SourceId = sourceId,
             TargetId = targetId,
             Type = "CALLS",
+        };
+    }
+
+    private static CbmNode LabelledNode(
+        string project,
+        string label,
+        string name,
+        string qualifiedName,
+        string filePath,
+        string propertiesJson)
+    {
+        return new CbmNode
+        {
+            Project = project,
+            Label = label,
+            Name = name,
+            QualifiedName = qualifiedName,
+            FilePath = filePath,
+            StartLine = 1,
+            EndLine = 3,
+            PropertiesJson = propertiesJson,
+        };
+    }
+
+    private static CbmEdge TypedEdge(long sourceId, long targetId, string type, string propertiesJson)
+    {
+        return new CbmEdge
+        {
+            Project = Project,
+            SourceId = sourceId,
+            TargetId = targetId,
+            Type = type,
+            PropertiesJson = propertiesJson,
         };
     }
 }

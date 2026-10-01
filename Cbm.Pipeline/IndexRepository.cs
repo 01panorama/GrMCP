@@ -277,6 +277,7 @@ public sealed class IndexRepository
 
         store.UpsertGraphEdges(projectName, idsByQualifiedName, extraction.Edges);
         store.EndBulk();
+        store.RebuildSchemaProperties(projectName);
         store.DumpToFile(databasePath);
 
         using var persistedStore = CbmStore.OpenPath(databasePath);

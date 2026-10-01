@@ -81,6 +81,16 @@ public sealed record CbmGraphSchema(
     IReadOnlyList<CbmLabelSchema> NodeLabels,
     IReadOnlyList<CbmEdgeTypeSchema> EdgeTypes);
 
+public sealed record CbmSchemaProperty(
+    string Owner,
+    string Kind,
+    string PropertyKey,
+    string ValueType);
+
+public sealed record CbmGraphSchemaResponse(
+    CbmGraphSchema Counts,
+    IReadOnlyList<CbmSchemaProperty> Properties);
+
 public sealed record CbmSearchGraphResult(
     IReadOnlyList<CbmNode> Results,
     int Total,

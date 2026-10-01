@@ -524,9 +524,18 @@ internal sealed class CypherParser
             return ParseInList(variable, property, negated);
         }
 
+        TryApplyInfixPropertyNegation(property, ref negated);
+
         var comparison = ParseComparisonOperator();
         if (comparison is null)
         {
+            if (Peek().Type == CypherTokenType.Not && property is not null)
+            {
+                throw new CypherParseException(
+                    "after property NOT use CONTAINS, STARTS WITH, or ENDS WITH — or prefix NOT on the predicate (e.g. NOT n.file_path CONTAINS \"…\")",
+                    Peek().Position);
+            }
+
             throw new CypherParseException("unexpected operator", Peek().Position);
         }
 
@@ -582,6 +591,24 @@ internal sealed class CypherParser
             throw new CypherParseException(
                 "unsupported EXISTS pattern — only the single-hop form '(var)-[:TYPE]->()' is supported");
         }
+    }
+
+    private void TryApplyInfixPropertyNegation(string? property, ref bool negated)
+    {
+        if (property is null || Peek().Type != CypherTokenType.Not)
+        {
+            return;
+        }
+
+        var notToken = Advance();
+        if (Peek().Type is not (CypherTokenType.Contains or CypherTokenType.Starts or CypherTokenType.Ends))
+        {
+            throw new CypherParseException(
+                "after property NOT use CONTAINS, STARTS WITH, or ENDS WITH — or prefix NOT on the predicate (e.g. NOT n.file_path CONTAINS \"…\")",
+                notToken.Position);
+        }
+
+        negated = !negated;
     }
 
     private CypherExpr ParseInList(string variable, string? property, bool negated)

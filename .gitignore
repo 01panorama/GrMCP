@@ -53,3 +53,5 @@ CodeCoverage/
 TestResult.xml
 nunit-*.xml
 /.cursor
+/relay
+.DS_Store

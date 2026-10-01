@@ -326,7 +326,7 @@ public sealed class CbmTools
         }
 
         EnsureProjectIndexed(project);
-        var schema = graphSchemaService.GetSchema(project);
+        var schema = graphSchemaService.GetSchemaForTool(project);
         return Task.FromResult(CbmMcpJson.FormatGraphSchema(schema));
     }
 
@@ -334,7 +334,7 @@ public sealed class CbmTools
     [Description("Run a read-only Cypher-subset query against an indexed project graph.")]
     public Task<string> QueryGraphAsync(
         [Description("Indexed project name.")] string project,
-        [Description("Cypher query string.")] string query,
+        [Description("Cypher query string (read-only subset; call get_skill_reference for grammar).")] string query,
         [Description("Maximum rows to return (0 = 100k ceiling).")] int max_rows = 0)
     {
         if (string.IsNullOrWhiteSpace(project))

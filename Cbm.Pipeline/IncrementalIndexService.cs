@@ -104,6 +104,7 @@ public sealed class IncrementalIndexService
         PersistChangedHashes(store, projectName, repositoryRoot, classification);
         store.UpsertProject(projectName, repositoryRoot);
         store.RefreshFtsIndex();
+        store.RebuildSchemaProperties(projectName);
 
         return new IncrementalPatchResult(nodesPatched, edgesRestored);
     }

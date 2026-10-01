@@ -1,6 +1,7 @@
 using Cbm.Graph;
 using Cbm.Pipeline;
 using Cbm.Store;
+using Microsoft.Data.Sqlite;
 
 namespace Cbm.Tests;
 
@@ -32,6 +33,41 @@ public sealed class CbmIndexIncrementalTests
         {
             Environment.SetEnvironmentVariable("CBM_CACHE_DIR", null);
         }
+    }
+
+    [Fact]
+    public async Task NoChangeSecondIndexDoesNotRebuildSchemaProperties()
+    {
+        using var temp = TempDirectory.Create();
+        using var cache = TempDirectory.Create();
+        Environment.SetEnvironmentVariable("CBM_CACHE_DIR", cache.RootPath);
+
+        try
+        {
+            WriteCallerCalleeFixture(temp.RootPath);
+            var repository = new IndexRepository();
+            var first = await repository.IndexAsync(temp.RootPath);
+            Assert.NotEmpty(CbmStore.OpenPath(first.DatabasePath).GetSchemaProperties(first.ProjectName));
+
+            ClearSchemaProperties(first.DatabasePath);
+            var second = await repository.IndexAsync(temp.RootPath);
+
+            Assert.Equal(IndexMode.NoChange, second.Mode);
+            Assert.Empty(CbmStore.OpenPath(first.DatabasePath).GetSchemaProperties(first.ProjectName));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("CBM_CACHE_DIR", null);
+        }
+    }
+
+    private static void ClearSchemaProperties(string databasePath)
+    {
+        using var connection = new SqliteConnection($"Data Source={databasePath}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM schema_properties;";
+        command.ExecuteNonQuery();
     }
 
     [Fact]

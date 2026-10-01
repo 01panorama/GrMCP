@@ -871,6 +871,14 @@ public sealed partial class CbmStore : IDisposable
               created_at TEXT NOT NULL,
               updated_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS schema_properties (
+              project TEXT NOT NULL REFERENCES projects(name) ON DELETE CASCADE,
+              owner TEXT NOT NULL CHECK (owner IN ('node', 'edge')),
+              kind TEXT NOT NULL,
+              property_key TEXT NOT NULL,
+              value_type TEXT NOT NULL,
+              PRIMARY KEY (project, owner, kind, property_key)
+            );
             CREATE TABLE IF NOT EXISTS trace_observations (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               project TEXT NOT NULL REFERENCES projects(name) ON DELETE CASCADE,

@@ -34,6 +34,7 @@ public static class CbmSkillReference
         AppendMetaTools(builder);
         AppendOutputVerbosity(builder);
         AppendCommonOptionalParams(builder);
+        AppendCypherSubset(builder);
         AppendCypherExamples(builder);
         AppendQualifiedNameTips(builder);
 
@@ -100,8 +101,8 @@ public static class CbmSkillReference
         builder.AppendLine("| `search_graph` | `project` | `{\"project\":\"Users-example-MyApp\",\"label\":\"Method\",\"name_pattern\":\"Execute\",\"limit\":5}` | `semantic_query` is unsupported in the C# port. |");
         builder.AppendLine("| `get_code_snippet` | `project`, `qualified_name` | `{\"project\":\"Users-example-MyApp\",\"qualified_name\":\"Sample.Worker.Execute\",\"include_neighbors\":true}` | Ambiguous suffix matches return suggestions instead of source. |");
         builder.AppendLine("| `search_code` | `project`, `pattern` | `{\"project\":\"Users-example-MyApp\",\"pattern\":\"Target\",\"mode\":\"compact\"}` | Implemented as pure .NET scanning, not shell grep. |");
-        builder.AppendLine("| `query_graph` | `project`, `query` | `{\"project\":\"Users-example-MyApp\",\"query\":\"MATCH (n:Method) RETURN n.name LIMIT 10\"}` | Only the supported read-only Cypher subset is accepted. |");
-        builder.AppendLine("| `get_graph_schema` | `project` | `{\"project\":\"Users-example-MyApp\"}` | Property lists are placeholders in this C# port. |");
+        builder.AppendLine("| `query_graph` | `project`, `query` | `{\"project\":\"Users-example-MyApp\",\"query\":\"MATCH (n:Method) RETURN n.name LIMIT 10\"}` | Read-only Cypher subset — see **Cypher subset** below; call `get_graph_schema` for labels and edges. |");
+        builder.AppendLine("| `get_graph_schema` | `project` | `{\"project\":\"Users-example-MyApp\"}` | JSON property keys come from the index-time catalog; re-index old caches. Counts are per label or edge type. |");
         builder.AppendLine("| `get_architecture` | `project` | `{\"project\":\"Users-example-MyApp\",\"aspects\":[\"all\"]}` | Clustering runs on the `CALLS` graph only; runtime data appears only after `ingest_traces`. |");
         builder.AppendLine("| `trace_path` | `project`, `function_name` | `{\"project\":\"Users-example-MyApp\",\"function_name\":\"Target\",\"direction\":\"inbound\",\"depth\":3}` | `cross_service` is a no-op because Route nodes are out of scope. |");
         builder.AppendLine();
@@ -172,9 +173,33 @@ public static class CbmSkillReference
         builder.AppendLine();
     }
 
+    private static void AppendCypherSubset(StringBuilder builder)
+    {
+        builder.AppendLine("## Cypher subset");
+        builder.AppendLine();
+        builder.AppendLine("Supported by `query_graph` (read-only; no CREATE/MERGE/CALL/write clauses):");
+        builder.AppendLine();
+        builder.AppendLine("- `MATCH` patterns with labels, relationship types, hop ranges, inline `{prop: value}` filters; optional `WHERE`, `RETURN`, `ORDER BY`, `LIMIT`, `UNION ALL`.");
+        builder.AppendLine("- Comparisons: `=`, `<>`, `<`, `>`, `<=`, `>=`, `=~`, `IN [...]`, `IS NULL` / `IS NOT NULL`.");
+        builder.AppendLine("- String predicates: `CONTAINS`, `STARTS WITH`, `ENDS WITH`.");
+        builder.AppendLine("- Negation: prefix `NOT` on a predicate (`NOT n.file_path CONTAINS \"…\"`) or infix after a property (`n.file_path NOT CONTAINS \"…\"`; same for `NOT STARTS WITH` / `NOT ENDS WITH`).");
+        builder.AppendLine("- `EXISTS { … }`: single-hop only (see dead-code example below).");
+        builder.AppendLine();
+    }
+
     private static void AppendCypherExamples(StringBuilder builder)
     {
         builder.AppendLine("## Cypher Examples");
+        builder.AppendLine();
+        builder.AppendLine("Complexity hotspots (exclude generated paths):");
+        builder.AppendLine();
+        builder.AppendLine("```cypher");
+        builder.AppendLine("MATCH (m:Method)");
+        builder.AppendLine("WHERE m.file_path NOT CONTAINS \"Reference.cs\"");
+        builder.AppendLine("RETURN m.name, m.qualified_name, m.cognitive, m.complexity");
+        builder.AppendLine("ORDER BY m.cognitive DESC");
+        builder.AppendLine("LIMIT 10");
+        builder.AppendLine("```");
         builder.AppendLine();
         builder.AppendLine("Dead code candidates:");
         builder.AppendLine();
