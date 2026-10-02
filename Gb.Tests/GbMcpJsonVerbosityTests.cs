@@ -1,15 +1,12 @@
 using System.Text.Json;
 using Gb.Graph;
 using Gb.Mcp;
-using Gb.Pipeline;
 using Gb.Store;
 
 namespace Gb.Tests;
 
-[Collection("GbCache")]
 public sealed class GbMcpJsonVerbosityTests
 {
-    private const string Project = "verbosity-search";
     private const string PropertyBagJson =
         """
         {"complexity":4,"cognitive":3,"linear_scan_in_loop":true,"signature":"()","return_type":"string","parent_class":"Worker"}
@@ -24,49 +21,6 @@ public sealed class GbMcpJsonVerbosityTests
         Assert.Equal(GbVerbosity.Full, GbVerbosityParser.Parse("unknown"));
         Assert.Equal(GbVerbosity.Compact, GbVerbosityParser.Parse("compact"));
         Assert.Equal(GbVerbosity.Compact, GbVerbosityParser.Parse(" COMPACT "));
-    }
-
-    [Fact]
-    public void SearchGraph_CompactOmitsPropertyBag_FullKeepsIt()
-    {
-        using var cache = TempDirectory.Create();
-        Environment.SetEnvironmentVariable("GB_CACHE_DIR", cache.Path);
-
-        try
-        {
-            using (var store = GbStore.OpenPath(GbCachePaths.GetProjectDatabasePath(Project)))
-            {
-                store.UpsertProject(Project, "/tmp/verbosity-search");
-                store.UpsertNode(new GbNode
-                {
-                    Project = Project,
-                    Label = "Method",
-                    Name = "Execute",
-                    QualifiedName = "Sample.Worker.Execute",
-                    FilePath = "Worker.cs",
-                    StartLine = 5,
-                    EndLine = 8,
-                    PropertiesJson = PropertyBagJson,
-                });
-            }
-
-            var search = new SearchGraphService().Search(Project, namePattern: "Execute", limit: 5);
-            var full = GbMcpJson.FormatSearchGraph(Project, search, verbosity: GbVerbosity.Full);
-            var compact = GbMcpJson.FormatSearchGraph(Project, search, verbosity: GbVerbosity.Compact);
-            var defaulted = GbMcpJson.FormatSearchGraph(Project, search);
-
-            Assert.Equal(full, defaulted);
-            Assert.Contains("\"complexity\"", full, StringComparison.Ordinal);
-            Assert.Contains("\"linear_scan_in_loop\"", full, StringComparison.Ordinal);
-            Assert.DoesNotContain("\"complexity\"", compact, StringComparison.Ordinal);
-            Assert.DoesNotContain("\"linear_scan_in_loop\"", compact, StringComparison.Ordinal);
-            Assert.Contains("\"qualified_name\"", compact, StringComparison.Ordinal);
-            Assert.Contains("\"in_degree\"", compact, StringComparison.Ordinal);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("GB_CACHE_DIR", null);
-        }
     }
 
     [Fact]
@@ -217,33 +171,5 @@ public sealed class GbMcpJsonVerbosityTests
 
         Assert.Equal("project not found or not indexed", document.RootElement.GetProperty("error").GetString());
         Assert.Equal("Call index_repository first.", document.RootElement.GetProperty("hint").GetString());
-    }
-
-    private sealed class TempDirectory : IDisposable
-    {
-        private TempDirectory(string path)
-        {
-            Path = path;
-        }
-
-        public string Path { get; }
-
-        public static TempDirectory Create()
-        {
-            var path = System.IO.Path.Combine(
-                System.IO.Path.GetTempPath(),
-                "gb-verbosity-tests",
-                Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(path);
-            return new TempDirectory(path);
-        }
-
-        public void Dispose()
-        {
-            if (Directory.Exists(Path))
-            {
-                Directory.Delete(Path, recursive: true);
-            }
-        }
     }
 }

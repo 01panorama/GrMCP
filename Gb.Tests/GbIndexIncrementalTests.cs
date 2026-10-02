@@ -6,6 +6,7 @@ using Microsoft.Data.Sqlite;
 namespace Gb.Tests;
 
 [Collection("GbCache")]
+[Trait("Category", "Integration")]
 public sealed class GbIndexIncrementalTests
 {
     [Fact]

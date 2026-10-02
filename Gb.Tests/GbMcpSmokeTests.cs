@@ -5,6 +5,8 @@ using System.Text.Json;
 namespace Gb.Tests;
 
 [Collection("GbCache")]
+[Trait("Category", "Integration")]
+[Trait("Category", "Smoke")]
 public sealed class GbMcpSmokeTests
 {
     [Fact]

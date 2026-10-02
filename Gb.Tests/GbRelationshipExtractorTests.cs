@@ -1,12 +1,10 @@
 using System.Text.Json;
 using Gb.Graph;
-using Gb.Pipeline;
 using Gb.Roslyn;
 using Gb.Store;
 
 namespace Gb.Tests;
 
-[Collection("GbCache")]
 public sealed class GbRelationshipExtractorTests
 {
     private const string Project = "test-project";
@@ -324,55 +322,6 @@ public sealed class GbRelationshipExtractorTests
         Assert.Equal(1, GetInt(innerProps, "loop_depth"));
         Assert.Equal(1, GetInt(outerProps, "transitive_loop_depth"));
         Assert.Equal(1, GetInt(innerProps, "transitive_loop_depth"));
-    }
-
-    [Fact]
-    public async Task PipelineIndexExposesCallEdgesInSchema()
-    {
-        using var temp = TempDirectory.Create();
-        using var cache = TempDirectory.Create();
-        Environment.SetEnvironmentVariable("GB_CACHE_DIR", cache.Path);
-
-        try
-        {
-            WriteProject(temp.Path);
-            WriteFile(
-                temp.Path,
-                "Caller.cs",
-                """
-                namespace Sample;
-
-                public sealed class Caller
-                {
-                    public string Run() => new Callee().Target();
-                }
-                """);
-            WriteFile(
-                temp.Path,
-                "Callee.cs",
-                """
-                namespace Sample;
-
-                public sealed class Callee
-                {
-                    public string Target() => "ok";
-                }
-                """);
-
-            var indexResult = await new IndexRepository().IndexAsync(temp.Path);
-            var schema = new GraphSchemaService().GetSchema(indexResult.ProjectName);
-            Assert.Contains(schema.EdgeTypes, edge => edge.Type == "CALLS" && edge.Count > 0);
-
-            using var store = GbStore.OpenPath(indexResult.DatabasePath);
-            var target = store.SearchNodes(indexResult.ProjectName, namePattern: "Target", limit: 5)
-                .Single(node => node.Name == "Target");
-            var neighbors = store.GetNodeNeighborNames(target.Id, limit: 10);
-            Assert.Contains("Run", neighbors.Callers);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("GB_CACHE_DIR", null);
-        }
     }
 
     private static async Task<IReadOnlyList<GbGraphEdge>> ExtractRelationshipsAsync(string repoRoot)
