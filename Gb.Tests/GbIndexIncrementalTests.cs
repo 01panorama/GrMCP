@@ -47,13 +47,19 @@ public sealed class GbIndexIncrementalTests
             WriteCallerCalleeFixture(temp.RootPath);
             var repository = new IndexRepository();
             var first = await repository.IndexAsync(temp.RootPath);
-            Assert.NotEmpty(GbStore.OpenPath(first.DatabasePath).GetSchemaProperties(first.ProjectName));
+            using (var storeAfterFirst = GbStore.OpenPath(first.DatabasePath))
+            {
+                Assert.NotEmpty(storeAfterFirst.GetSchemaProperties(first.ProjectName));
+            }
 
             ClearSchemaProperties(first.DatabasePath);
             var second = await repository.IndexAsync(temp.RootPath);
 
             Assert.Equal(IndexMode.NoChange, second.Mode);
-            Assert.Empty(GbStore.OpenPath(first.DatabasePath).GetSchemaProperties(first.ProjectName));
+            using (var storeAfterSecond = GbStore.OpenPath(first.DatabasePath))
+            {
+                Assert.Empty(storeAfterSecond.GetSchemaProperties(first.ProjectName));
+            }
         }
         finally
         {

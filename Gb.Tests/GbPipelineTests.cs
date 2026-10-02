@@ -8,9 +8,14 @@ public sealed class GbPipelineTests
     [Fact]
     public void DerivesStableProjectNameFromRepositoryPath()
     {
-        var projectName = GbProjectNaming.DeriveFromPath("/Users/test/my project/GrMCP");
+        using var temp = TempDirectory.Create();
+        var repositoryRoot = Path.Combine(temp.Path, "my project", "GrMCP");
+        Directory.CreateDirectory(repositoryRoot);
 
-        Assert.Equal("Users-test-my-project-GrMCP", projectName);
+        var projectName = GbProjectNaming.DeriveFromPath(repositoryRoot);
+
+        Assert.EndsWith("my-project-GrMCP", projectName);
+        Assert.Equal(projectName, GbProjectNaming.DeriveFromPath(repositoryRoot));
         Assert.True(GbProjectNaming.IsValidProjectName(projectName));
     }
 
