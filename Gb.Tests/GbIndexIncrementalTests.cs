@@ -64,12 +64,19 @@ public sealed class GbIndexIncrementalTests
         finally
         {
             Environment.SetEnvironmentVariable("GB_CACHE_DIR", null);
+            SqliteConnection.ClearAllPools();
         }
     }
 
     private static void ClearSchemaProperties(string databasePath)
     {
-        using var connection = new SqliteConnection($"Data Source={databasePath}");
+        var builder = new SqliteConnectionStringBuilder
+        {
+            DataSource = databasePath,
+            Mode = SqliteOpenMode.ReadWrite,
+            Pooling = false,
+        };
+        using var connection = new SqliteConnection(builder.ConnectionString);
         connection.Open();
         using var command = connection.CreateCommand();
         command.CommandText = "DELETE FROM schema_properties;";
@@ -522,9 +529,19 @@ public sealed class GbIndexIncrementalTests
 
         public void Dispose()
         {
-            if (Directory.Exists(RootPath))
+            SqliteConnection.ClearAllPools();
+            try
             {
-                Directory.Delete(RootPath, recursive: true);
+                if (Directory.Exists(RootPath))
+                {
+                    Directory.Delete(RootPath, recursive: true);
+                }
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
             }
         }
     }
