@@ -1,0 +1,904 @@
+using System.Text;
+
+namespace Gb.Mcp;
+
+public sealed record GbToolParameter(
+    string Name,
+    string Type,
+    bool Required,
+    string Description);
+
+public sealed record GbToolDefinition(
+    string Name,
+    string Category,
+    string Description,
+    IReadOnlyList<GbToolParameter> Parameters,
+    string Usage,
+    string ExampleInput,
+    string ExampleOutput,
+    string CodeSnippet,
+    IReadOnlyList<string> Caveats);
+
+public static class GbToolCatalog
+{
+    public static IReadOnlyList<string> Categories { get; } = ["lifecycle", "query", "mutation", "meta"];
+
+    public static IReadOnlyList<GbToolDefinition> Tools { get; } =
+    [
+        new(
+            "list_tools",
+            "meta",
+            "Return rich documentation for every GraphBase MCP tool.",
+            [
+                new("format", "string", false, "Output format: json (default) or markdown."),
+                new("name", "string", false, "Optional exact tool name filter."),
+                new("tools", "string[]", false, "Optional exact tool names filter for multiple relevant tools."),
+                new("category", "string", false, "Optional category filter: lifecycle, query, mutation, or meta."),
+            ],
+            "Use this first when you need examples, caveats, or parameter details beyond the MCP tools/list schema. Omit filters for the full catalog, pass name for one tool, tools for several exact tools, or category for a broad slice.",
+            """
+            {
+              "format": "json",
+              "tools": ["search_graph", "get_code_snippet"]
+            }
+            """,
+            """
+            {
+              "total": 2,
+              "tools": [
+                {
+                  "name": "search_graph",
+                  "category": "query",
+                  "description": "Search the code knowledge graph using BM25 query and/or regex filters."
+                },
+                {
+                  "name": "get_code_snippet",
+                  "category": "query",
+                  "description": "Return source lines for a symbol by exact or suffix qualified_name."
+                }
+              ]
+            }
+            """,
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 1,
+              "method": "tools/call",
+              "params": {
+                "name": "list_tools",
+                "arguments": {
+                  "format": "json",
+                  "tools": ["search_graph", "get_code_snippet"]
+                }
+              }
+            }
+            """,
+            []),
+        new(
+            "get_skill_reference",
+            "meta",
+            "Return the distilled GraphBase MCP skill reference as markdown.",
+            [],
+            "Use this to load the compact skill reference (tool index, required/optional params, verbosity guidance, and Cypher examples) in one call. Use list_tools for full per-tool docs.",
+            """
+            {}
+            """,
+            """
+            "# GraphBase MCP Reference\n\nDistilled skill reference for GraphBase MCP tools.\n\n## Tool Index\n..."
+            """,
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 16,
+              "method": "tools/call",
+              "params": {
+                "name": "get_skill_reference",
+                "arguments": {}
+              }
+            }
+            """,
+            ["Returns markdown only; use list_tools for structured json tool docs."]),
+        new(
+            "list_projects",
+            "lifecycle",
+            "List indexed projects in the local GraphBase cache.",
+            [],
+            "Use this to discover available project names before calling tools that require project.",
+            """
+            {}
+            """,
+            """
+            {
+              "projects": [
+                {
+                  "name": "Users-example-MyApp",
+                  "root_path": "/Users/example/MyApp",
+                  "nodes": 128,
+                  "edges": 256,
+                  "size_bytes": 1048576
+                }
+              ]
+            }
+            """,
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 2,
+              "method": "tools/call",
+              "params": {
+                "name": "list_projects",
+                "arguments": {}
+              }
+            }
+            """,
+            ["Returns a hint when no projects are indexed."]),
+        new(
+            "index_repository",
+            "lifecycle",
+            "Index a C# repository into the knowledge graph.",
+            [
+                new("repo_path", "string", true, "Path to the repository root, solution, or project file."),
+                new("mode", "string", false, "Indexing mode. cross-repo-intelligence is rejected in this C# port."),
+            ],
+            "Run this before query tools. The index is stored in GB_CACHE_DIR when set, otherwise in the local GraphBase cache.",
+            """
+            {
+              "repo_path": "/Users/example/MyApp",
+              "mode": "full"
+            }
+            """,
+            """
+            {
+              "project": "Users-example-MyApp",
+              "status": "indexed",
+              "nodes": 128,
+              "edges": 256,
+              "root_path": "/Users/example/MyApp",
+              "index_mode": "full"
+            }
+            """,
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 3,
+              "method": "tools/call",
+              "params": {
+                "name": "index_repository",
+                "arguments": { "repo_path": "/Users/example/MyApp" }
+              }
+            }
+            """,
+            ["Requires a C# project, solution, or loose C# files."]),
+        new(
+            "index_status",
+            "lifecycle",
+            "Return node and edge counts plus status for an indexed project.",
+            [
+                new("project", "string", true, "Indexed project name."),
+            ],
+            "Use this after index_repository to verify that a project is populated.",
+            """
+            {
+              "project": "Users-example-MyApp"
+            }
+            """,
+            """
+            {
+              "project": "Users-example-MyApp",
+              "nodes": 128,
+              "edges": 256,
+              "status": "indexed",
+              "root_path": "/Users/example/MyApp"
+            }
+            """,
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 4,
+              "method": "tools/call",
+              "params": {
+                "name": "index_status",
+                "arguments": { "project": "Users-example-MyApp" }
+              }
+            }
+            """,
+            ["Throws project-not-found guidance when the cache database is missing."]),
+        new(
+            "delete_project",
+            "lifecycle",
+            "Delete a project's cached index database.",
+            [
+                new("project", "string", true, "Indexed project name."),
+            ],
+            "Use this to remove a stale or corrupt local index before rebuilding.",
+            """
+            {
+              "project": "Users-example-MyApp"
+            }
+            """,
+            """
+            {
+              "project": "Users-example-MyApp",
+              "status": "deleted"
+            }
+            """,
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 5,
+              "method": "tools/call",
+              "params": {
+                "name": "delete_project",
+                "arguments": { "project": "Users-example-MyApp" }
+              }
+            }
+            """,
+            ["This deletes only the local GraphBase cache database, not source files."]),
+        new(
+            "search_graph",
+            "query",
+            "Search the code knowledge graph using BM25 query and/or regex filters.",
+            [
+                new("project", "string", true, "Indexed project name."),
+                new("query", "string", false, "BM25 full-text query."),
+                new("label", "string", false, "Node label filter, such as Method or Class."),
+                new("name_pattern", "string", false, "Regex matched against node name."),
+                new("qn_pattern", "string", false, "Regex matched against qualified_name."),
+                new("file_pattern", "string", false, "Regex matched against file_path."),
+                new("case_sensitive", "bool", false, "When true, regex matching is case-sensitive."),
+                new("limit", "int", false, "Maximum results to return."),
+                new("offset", "int", false, "Number of matching nodes to skip before returning results."),
+                new("verbosity", "string", false, "Output detail: full (default, GraphBase default) or compact (drops metric/property noise)."),
+                new("semantic_query", "string[]", false, "Unsupported compatibility parameter."),
+            ],
+            "Use query for broad discovery, then narrow with label, name_pattern, qn_pattern, or file_pattern. Pass verbosity=compact to omit node metric properties.",
+            """
+            {
+              "project": "Users-example-MyApp",
+              "name_pattern": "Execute",
+              "label": "Method",
+              "limit": 5,
+              "verbosity": "compact"
+            }
+            """,
+            """
+            {
+              "total": 1,
+              "has_more": false,
+              "results": [
+                {
+                  "name": "Execute",
+                  "qualified_name": "Sample.Worker.Execute",
+                  "label": "Method"
+                }
+              ]
+            }
+            """,
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 6,
+              "method": "tools/call",
+              "params": {
+                "name": "search_graph",
+                "arguments": {
+                  "project": "Users-example-MyApp",
+                  "name_pattern": "Execute",
+                  "limit": 5
+                }
+              }
+            }
+            """,
+            ["semantic_query is not supported in the C# port because embeddings are out of scope.", "compact omits node metric properties; omit verbosity or pass full for GraphBase default payloads."]),
+        new(
+            "get_code_snippet",
+            "query",
+            "Return source lines for a symbol by exact or suffix qualified_name.",
+            [
+                new("project", "string", true, "Indexed project name."),
+                new("qualified_name", "string", true, "Exact or suffix qualified_name to resolve."),
+                new("include_neighbors", "bool", false, "Include one-hop caller/callee names when available."),
+                new("verbosity", "string", false, "Output detail: full (default, GraphBase default) or compact (drops metric/property noise)."),
+            ],
+            "Use search_graph first to find a qualified_name, then call this tool for source context. Pass verbosity=compact to omit complexity metrics.",
+            """
+            {
+              "project": "Users-example-MyApp",
+              "qualified_name": "Sample.Worker.Execute",
+              "include_neighbors": true,
+              "verbosity": "compact"
+            }
+            """,
+            """
+            {
+              "qualified_name": "Sample.Worker.Execute",
+              "source": "public string Execute()\\n{\\n    return \"ok\";\\n}",
+              "start_line": 5,
+              "end_line": 8
+            }
+            """,
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 7,
+              "method": "tools/call",
+              "params": {
+                "name": "get_code_snippet",
+                "arguments": {
+                  "project": "Users-example-MyApp",
+                  "qualified_name": "Sample.Worker.Execute"
+                }
+              }
+            }
+            """,
+            ["Ambiguous suffix matches return suggestions instead of source.", "compact omits node metric properties; omit verbosity or pass full for GraphBase default payloads."]),
+        new(
+            "search_code",
+            "query",
+            "Graph-augmented code search over indexed source files.",
+            [
+                new("project", "string", true, "Indexed project name."),
+                new("pattern", "string", true, "Text or regex pattern to search for."),
+                new("file_pattern", "string", false, "Glob for file names, such as *.cs."),
+                new("path_filter", "string", false, "Regex filter on result file paths."),
+                new("mode", "string", false, "Output mode: compact, full, or files."),
+                new("context", "int", false, "Context lines around each match in compact mode."),
+                new("regex", "bool", false, "When true, treat pattern as extended regex."),
+                new("limit", "int", false, "Maximum enriched results to return."),
+                new("verbosity", "string", false, "Output detail: full (default, GraphBase default) or compact (omits raw_matches and redundant counters). Independent of mode."),
+            ],
+            "Use this for text search when you want matches grouped by containing symbol and ranked by graph context. Pass verbosity=compact to omit raw_matches and redundant match counters.",
+            """
+            {
+              "project": "Users-example-MyApp",
+              "pattern": "Target",
+              "mode": "compact",
+              "verbosity": "compact"
+            }
+            """,
+            """
+            {
+              "total_grep_matches": 1,
+              "total_results": 1,
+              "results": [
+                {
+                  "node": "Target",
+                  "qualified_name": "Sample.Callee.Target"
+                }
+              ]
+            }
+            """,
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 8,
+              "method": "tools/call",
+              "params": {
+                "name": "search_code",
+                "arguments": {
+                  "project": "Users-example-MyApp",
+                  "pattern": "Target"
+                }
+              }
+            }
+            """,
+            ["Implemented as pure .NET scanning, not shell grep.", "verbosity is independent of mode: mode selects source vs paths; verbosity drops redundant JSON metadata."]),
+        new(
+            "query_graph",
+            "query",
+            "Run a read-only Cypher-subset query against an indexed project graph.",
+            [
+                new("project", "string", true, "Indexed project name."),
+                new("query", "string", true, "Cypher query string (read-only subset; call get_skill_reference for grammar)."),
+                new("max_rows", "int", false, "Maximum rows to return. Zero uses the 100k ceiling."),
+            ],
+            "Use this for precise graph questions over labels, edge types, and node properties.",
+            """
+            {
+              "project": "Users-example-MyApp",
+              "query": "MATCH (n:Method) RETURN n.name LIMIT 10"
+            }
+            """,
+            """
+            {
+              "columns": ["n.name"],
+              "rows": [["Execute"], ["Target"]],
+              "total": 2
+            }
+            """,
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 9,
+              "method": "tools/call",
+              "params": {
+                "name": "query_graph",
+                "arguments": {
+                  "project": "Users-example-MyApp",
+                  "query": "MATCH (n:Method) RETURN n.name LIMIT 10"
+                }
+              }
+            }
+            """,
+            [
+                "Read-only Cypher subset only — not full Neo4j Cypher.",
+                "Grammar and examples: call `get_skill_reference` (Cypher subset and Cypher examples sections).",
+            ]),
+        new(
+            "get_graph_schema",
+            "query",
+            "Return node label and edge type counts for an indexed project.",
+            [
+                new("project", "string", true, "Indexed project name."),
+            ],
+            "Use this before writing query_graph queries to discover labels and edge types present in the project.",
+            """
+            {
+              "project": "Users-example-MyApp"
+            }
+            """,
+            """
+            {
+              "columns": ["name", "qualified_name", "label", "file_path", "start_line", "end_line"],
+              "node_labels": [
+                {
+                  "label": "Method",
+                  "count": 42,
+                  "properties": {
+                    "integer": ["param_count"],
+                    "boolean": ["is_test"],
+                    "text": ["signature"]
+                  }
+                },
+                { "label": "Constructor", "count": 11, "properties_same_as": "Method" }
+              ],
+              "edge_types": [
+                {
+                  "type": "CALLS",
+                  "count": 64,
+                  "properties": {
+                    "integer": ["arg_count"],
+                    "real": ["confidence"],
+                    "text": ["strategy"]
+                  }
+                }
+              ]
+            }
+            """,
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 10,
+              "method": "tools/call",
+              "params": {
+                "name": "get_graph_schema",
+                "arguments": { "project": "Users-example-MyApp" }
+              }
+            }
+            """,
+            [
+                "JSON property keys are filled from the index-time catalog; re-index after upgrading an old cache file.",
+                "Counts are nodes per label or edges per type, not per-key presence.",
+            ]),
+        new(
+            "get_architecture",
+            "query",
+            "Get a high-level architecture overview for an indexed project.",
+            [
+                new("project", "string", true, "Indexed project name."),
+                new("path", "string", false, "Optional directory prefix to scope architecture."),
+                new("aspects", "string[]", false, "Aspects to include, such as structure, packages, clusters, runtime, or all."),
+                new("verbosity", "string", false, "Output detail: full (default, GraphBase default) or compact (caps cluster lists and file_tree)."),
+            ],
+            "Use this for package counts, dependency shape, hotspots, clusters, file tree, and optional runtime trace overlay. Pass verbosity=compact to cap cluster member lists and file_tree.",
+            """
+            {
+              "project": "Users-example-MyApp",
+              "aspects": ["structure", "clusters"],
+              "verbosity": "compact"
+            }
+            """,
+            """
+            {
+              "project": "Users-example-MyApp",
+              "total_nodes": 128,
+              "total_edges": 256,
+              "languages": [
+                { "language": "C#", "file_count": 12 }
+              ]
+            }
+            """,
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 11,
+              "method": "tools/call",
+              "params": {
+                "name": "get_architecture",
+                "arguments": {
+                  "project": "Users-example-MyApp",
+                  "aspects": ["all"]
+                }
+              }
+            }
+            """,
+            ["Clustering runs on the CALLS graph only.", "Runtime data appears only after ingest_traces.", "compact caps cluster nested lists and file_tree; scoped_total_* duplicates are omitted in all modes."]),
+        new(
+            "trace_path",
+            "query",
+            "Trace paths through the code graph for calls, data flow, or cross-service compatibility mode.",
+            [
+                new("project", "string", true, "Indexed project name."),
+                new("function_name", "string", true, "Function or method name, or exact qualified_name."),
+                new("direction", "string", false, "Traversal direction: inbound, outbound, or both."),
+                new("depth", "int", false, "Maximum hop depth."),
+                new("mode", "string", false, "Trace mode: calls, data_flow, or cross_service."),
+                new("risk_labels", "bool", false, "Add risk classification per hop."),
+                new("include_tests", "bool", false, "Include test files in results."),
+                new("edge_types", "string[]", false, "Explicit edge types to follow, overriding mode."),
+                new("parameter_name", "string", false, "Accepted for GraphBase default; not used by the handler."),
+            ],
+            "Use this after finding a method to inspect callers, callees, or nearby data-flow edges.",
+            """
+            {
+              "project": "Users-example-MyApp",
+              "function_name": "Target",
+              "direction": "inbound",
+              "depth": 3
+            }
+            """,
+            """
+            {
+              "function": "Target",
+              "direction": "inbound",
+              "mode": "calls",
+              "callers": [
+                { "name": "Run", "qualified_name": "Sample.Caller.Run", "hop": 1 }
+              ]
+            }
+            """,
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 12,
+              "method": "tools/call",
+              "params": {
+                "name": "trace_path",
+                "arguments": {
+                  "project": "Users-example-MyApp",
+                  "function_name": "Target",
+                  "direction": "inbound"
+                }
+              }
+            }
+            """,
+            ["cross_service is a no-op in the C# port because Route nodes are out of scope."]),
+        new(
+            "detect_changes",
+            "mutation",
+            "Detect code changes and their impact via git diff and CALLS graph propagation.",
+            [
+                new("project", "string", true, "Indexed project name."),
+                new("scope", "string", false, "Result scope: files, symbols, or impact."),
+                new("depth", "int", false, "CALLS BFS depth for impact scope."),
+                new("base_branch", "string", false, "Base branch or ref for three-dot diff."),
+                new("since", "string", false, "Git ref to compare from; takes precedence over base_branch."),
+            ],
+            "Use this in git repositories to find changed files, changed symbols, or impacted callers.",
+            """
+            {
+              "project": "Users-example-MyApp",
+              "scope": "impact",
+              "depth": 2,
+              "base_branch": "main"
+            }
+            """,
+            """
+            {
+              "changed_files": ["Worker.cs"],
+              "changed_count": 1,
+              "depth": 2,
+              "base": "main",
+              "scope": "impact",
+              "impacted_symbol_count": 3
+            }
+            """,
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 13,
+              "method": "tools/call",
+              "params": {
+                "name": "detect_changes",
+                "arguments": {
+                  "project": "Users-example-MyApp",
+                  "scope": "impact",
+                  "depth": 2
+                }
+              }
+            }
+            """,
+            ["Non-git repositories return a not_a_git_repo error.", "symbols scope reports changed-file symbols only; use impact for propagation."]),
+        new(
+            "manage_adr",
+            "mutation",
+            "Create, update, retrieve, or inspect Architecture Decision Records.",
+            [
+                new("project", "string", true, "Indexed project name."),
+                new("mode", "string", false, "Operation mode: get, update, store, or sections."),
+                new("content", "string", false, "Full ADR markdown content for update or store mode."),
+                new("sections", "string[]", false, "Accepted for GraphBase default; ignored by the handler."),
+            ],
+            "Use this to keep architecture context near the project graph for future agent sessions.",
+            """
+            {
+              "project": "Users-example-MyApp",
+              "mode": "update",
+              "content": "## PURPOSE\\nDocument key architecture decisions.\\n"
+            }
+            """,
+            """
+            {
+              "status": "updated"
+            }
+            """,
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 14,
+              "method": "tools/call",
+              "params": {
+                "name": "manage_adr",
+                "arguments": {
+                  "project": "Users-example-MyApp",
+                  "mode": "sections"
+                }
+              }
+            }
+            """,
+            ["There is no delete mode.", "The sections argument is currently ignored by the handler."]),
+        new(
+            "ingest_traces",
+            "mutation",
+            "Ingest runtime traces to enhance the knowledge graph with observed call and latency data.",
+            [
+                new("project", "string", true, "Indexed project name."),
+                new("traces", "JsonElement[]", true, "Array of trace entries with direct fields or OTLP-like spans."),
+            ],
+            "Use this after indexing to overlay observed runtime calls, counts, and latency data onto static CALLS edges.",
+            """
+            {
+              "project": "Users-example-MyApp",
+              "traces": [
+                {
+                  "caller": "Run",
+                  "callee": "Target",
+                  "duration_ms": 8.0,
+                  "count": 1
+                }
+              ]
+            }
+            """,
+            """
+            {
+              "status": "accepted",
+              "traces_received": 1,
+              "traces_ingested": 1,
+              "edges_matched": 1,
+              "unresolved": 0
+            }
+            """,
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 15,
+              "method": "tools/call",
+              "params": {
+                "name": "ingest_traces",
+                "arguments": {
+                  "project": "Users-example-MyApp",
+                  "traces": [
+                    {
+                      "caller": "Run",
+                      "callee": "Target",
+                      "duration_ms": 8.0,
+                      "count": 1
+                    }
+                  ]
+                }
+              }
+            }
+            """,
+            ["Route nodes are out of scope, so route observations do not create cross-service graph completeness."]),
+    ];
+
+    public static GbToolDefinition? FindByName(string name)
+    {
+        return Tools.FirstOrDefault(tool => string.Equals(tool.Name, name, StringComparison.Ordinal));
+    }
+
+    public static string RenderMarkdown(IEnumerable<GbToolDefinition>? tools = null)
+    {
+        var selectedTools = (tools ?? Tools).ToArray();
+        var includeFullOverview = selectedTools.Length == Tools.Count
+            && selectedTools.Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal)
+                .SetEquals(Tools.Select(tool => tool.Name));
+        var builder = new StringBuilder();
+
+        builder.AppendLine("# GraphBase MCP Tools");
+        builder.AppendLine();
+        if (includeFullOverview)
+        {
+            AppendFullOverview(builder);
+        }
+        else
+        {
+            builder.AppendLine("Filtered tool documentation for the requested GraphBase MCP tools.");
+            builder.AppendLine();
+        }
+
+        builder.AppendLine("## Tool Index");
+        builder.AppendLine();
+
+        foreach (var tool in selectedTools)
+        {
+            builder.AppendLine($"- [`{tool.Name}`](#{ToAnchor(tool.Name)}) - {tool.Description}");
+        }
+
+        foreach (var tool in selectedTools)
+        {
+            AppendTool(builder, tool);
+        }
+
+        // Normalize to LF so emitted docs are byte-identical on macOS and Windows.
+        return builder.ToString().ReplaceLineEndings("\n");
+    }
+
+    private static void AppendTool(StringBuilder builder, GbToolDefinition tool)
+    {
+        builder.AppendLine();
+        builder.AppendLine($"## {tool.Name}");
+        builder.AppendLine();
+        builder.AppendLine(tool.Description);
+        builder.AppendLine();
+        builder.AppendLine($"Category: `{tool.Category}`");
+        builder.AppendLine();
+        builder.AppendLine("### Parameters");
+        builder.AppendLine();
+
+        if (tool.Parameters.Count == 0)
+        {
+            builder.AppendLine("This tool has no parameters.");
+        }
+        else
+        {
+            builder.AppendLine("| Name | Type | Required | Description |");
+            builder.AppendLine("|------|------|----------|-------------|");
+            foreach (var parameter in tool.Parameters)
+            {
+                builder.AppendLine(
+                    $"| `{parameter.Name}` | `{parameter.Type}` | {(parameter.Required ? "yes" : "no")} | {EscapeTableCell(parameter.Description)} |");
+            }
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("### Usage");
+        builder.AppendLine();
+        builder.AppendLine(tool.Usage);
+        builder.AppendLine();
+        builder.AppendLine("### Example Input");
+        builder.AppendLine();
+        builder.AppendLine("```json");
+        builder.AppendLine(tool.ExampleInput.Trim());
+        builder.AppendLine("```");
+        builder.AppendLine();
+        builder.AppendLine("### Example Output");
+        builder.AppendLine();
+        builder.AppendLine("```json");
+        builder.AppendLine(tool.ExampleOutput.Trim());
+        builder.AppendLine("```");
+        builder.AppendLine();
+        builder.AppendLine("### MCP Invocation");
+        builder.AppendLine();
+        builder.AppendLine("```json");
+        builder.AppendLine(tool.CodeSnippet.Trim());
+        builder.AppendLine("```");
+
+        if (tool.Caveats.Count == 0)
+        {
+            return;
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("### Caveats");
+        builder.AppendLine();
+        foreach (var caveat in tool.Caveats)
+        {
+            builder.AppendLine($"- {caveat}");
+        }
+    }
+
+    private static string EscapeTableCell(string value)
+    {
+        return value.Replace("|", "\\|", StringComparison.Ordinal);
+    }
+
+    private static void AppendFullOverview(StringBuilder builder)
+    {
+        builder.AppendLine("GraphBase MCP exposes a local, stdio-based Model Context Protocol server for indexing C# repositories into a SQLite code knowledge graph and querying that graph from agents.");
+        builder.AppendLine();
+        builder.AppendLine("## Setup");
+        builder.AppendLine();
+        builder.AppendLine("Prerequisites:");
+        builder.AppendLine();
+        builder.AppendLine("- Install the .NET SDK required by this build (`net10.0`).");
+        builder.AppendLine("- Install or build the GraphBase MCP executable from this repository or the internal tool feed.");
+        builder.AppendLine("- Ensure the target repository contains C# source, a `.csproj`, or a `.sln` file. Loose `.cs` files are supported with reduced semantic resolution.");
+        builder.AppendLine();
+        builder.AppendLine("MCP client registration uses stdio. Point your client at the installed command or the local MCP project binary, and set `GB_CACHE_DIR` if you want indexes outside the default cache location.");
+        builder.AppendLine();
+        builder.AppendLine("```json");
+        builder.AppendLine("{");
+        builder.AppendLine("  \"mcpServers\": {");
+        builder.AppendLine("    \"gb\": {");
+        builder.AppendLine("      \"command\": \"gb-mcp\",");
+        builder.AppendLine("      \"args\": [],");
+        builder.AppendLine("      \"env\": {");
+        builder.AppendLine("        \"GB_CACHE_DIR\": \"/Users/example/.cache/graphbase\"");
+        builder.AppendLine("      }");
+        builder.AppendLine("    }");
+        builder.AppendLine("  }");
+        builder.AppendLine("}");
+        builder.AppendLine("```");
+        builder.AppendLine();
+        builder.AppendLine("For local development before packaging, run the server from the MCP project output and use the same stdio registration shape with `command` set to `dotnet` and `args` set to `[\"exec\", \"/absolute/path/to/gb-mcp.dll\"]`.");
+        builder.AppendLine();
+        builder.AppendLine("After registration, smoke test the server by calling `list_tools`, then index a repository:");
+        builder.AppendLine();
+        builder.AppendLine("```json");
+        builder.AppendLine("{");
+        builder.AppendLine("  \"name\": \"index_repository\",");
+        builder.AppendLine("  \"arguments\": {");
+        builder.AppendLine("    \"repo_path\": \"/Users/example/MyApp\"");
+        builder.AppendLine("  }");
+        builder.AppendLine("}");
+        builder.AppendLine("```");
+        builder.AppendLine();
+        builder.AppendLine("Use the returned `project` name with `search_graph`, `get_code_snippet`, `query_graph`, and the other project-scoped tools.");
+        builder.AppendLine();
+        builder.AppendLine("Typical workflow:");
+        builder.AppendLine();
+        builder.AppendLine("1. Call `index_repository` with a repository, solution, or project path.");
+        builder.AppendLine("2. Use `list_projects` or `index_status` to find or verify the indexed project name.");
+        builder.AppendLine("3. Use query tools such as `search_graph`, `get_code_snippet`, `search_code`, `query_graph`, `get_architecture`, and `trace_path`.");
+        builder.AppendLine("4. Use mutation tools such as `manage_adr`, `ingest_traces`, and `detect_changes` when you need persisted ADR context, runtime overlays, or git impact analysis.");
+        builder.AppendLine();
+        builder.AppendLine("The cache directory is `GB_CACHE_DIR` when set, otherwise `~/.cache/graphbase-dotnet`.");
+        builder.AppendLine();
+        AppendVerbosityGuidance(builder);
+    }
+
+    private static void AppendVerbosityGuidance(StringBuilder builder)
+    {
+        builder.AppendLine("## Output verbosity");
+        builder.AppendLine();
+        builder.AppendLine("`search_graph`, `get_code_snippet`, `search_code`, and `get_architecture` accept `verbosity`: `full` (default, GraphBase default payloads) or `compact` (fewer tokens). Other tools are unchanged. Do not pass `compact` on every call, and do not call the same tool twice (`compact` then `full`). Choose once from the question type.");
+        builder.AppendLine();
+        builder.AppendLine("| Tool | Use `compact` when | Use `full` (or another tool) when |");
+        builder.AppendLine("|------|--------------------|-----------------------------------|");
+        builder.AppendLine("| `search_graph` | Finding a `qualified_name` for `get_code_snippet` or `trace_path`. Keeps name, label, file, lines, and degrees. | You need complexity metrics, `is_test` / `is_exported` / `is_entry_point`, or `return_type` on the hit list itself. Prefer `query_graph` or `get_architecture` hotspots for metric questions. |");
+        builder.AppendLine("| `get_code_snippet` | Reading source (and optional neighbors). Metrics are redundant with the source. | Almost never. If you need graph metrics, use `query_graph` instead of re-fetching the snippet. |");
+        builder.AppendLine("| `search_code` | You only need symbol-grouped `results` (node, file, `match_lines`). Independent of `mode`. | Hits may live outside a symbol (comments, unmatched files). Compact drops `raw_matches` and leaves only `raw_match_count` with no file/line/text. |");
+        builder.AppendLine("| `get_architecture` | Scoped overview: pass `aspects` and/or `path`, and you can accept cluster `top_nodes` / `file_tree` capped at 8. | Full-repo map, complete cluster membership, or an unscoped `file_tree`. Truncation is silent (no `has_more`). Prefer `path` / `aspects` over compact-then-full. |");
+        builder.AppendLine();
+        builder.AppendLine("Default investigation chain: `search_graph` (`verbosity=compact`) → `get_code_snippet` (`verbosity=compact`, `include_neighbors=true` when you need one-hop names) → `trace_path` or `query_graph`. `qualified_name` already includes parameter types, so compact search does not block overload disambiguation.");
+        builder.AppendLine();
+        builder.AppendLine("`scoped_total_nodes` / `scoped_total_edges` are omitted in every `get_architecture` mode; they duplicated `total_nodes` / `total_edges`. `path`, `root_total_nodes`, and `root_total_edges` remain when `path` is set.");
+        builder.AppendLine();
+    }
+
+    private static string ToAnchor(string toolName)
+    {
+        return toolName.ToLowerInvariant();
+    }
+}

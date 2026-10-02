@@ -1,21 +1,21 @@
 ---
-name: cbm-mcp
-description: Teaches agents how to use the CBM / cbm-mcp MCP server to index_repository C# repositories into a code knowledge graph and query it with search_graph, trace_path, query_graph, and detect_changes. Applies when investigating C# architecture, symbol lookup, call graph traversal, graph queries, and git impact analysis through user-cbm-mcp.
+name: graphbase-mcp
+description: Teaches agents how to use the GraphBase gb-mcp MCP server to index_repository C# repositories into a code knowledge graph and query it with search_graph, trace_path, query_graph, and detect_changes. Applies when investigating C# architecture, symbol lookup, call graph traversal, graph queries, and git impact analysis through user-gb-mcp.
 ---
 
-# CBM MCP
+# GraphBase MCP
 
-Use this skill when exploring C# repositories through the `cbm` or `user-cbm-mcp` MCP server. 
+Use this skill when exploring C# repositories through the `gb` or `user-gb-mcp` MCP server.
 
 ## Principles
 
-- Treat CBM as a graph DB over the codebase, not a replacement for reading arbitrary files.
+- Treat GraphBase as a graph DB over the codebase, not a replacement for reading arbitrary files.
 - Prefer graph answers for relationships and architecture, then read live files when exact source text matters.
 - Keep `project`, `qualified_name`, and `index_mode` terminology consistent.
 
-## When To Use CBM Vs Native Tools
+## When To Use GraphBase Vs Native Tools
 
-Prefer CBM for:
+Prefer GraphBase for:
 
 - Symbol lookup across indexed C# code.
 - Call chains, callers, callees, impact paths, and call graph questions.
@@ -32,11 +32,11 @@ Prefer native `Read`, `rg`, or IDE tools for:
 
 ## Prerequisites Checklist
 
-- [ ] MCP server is registered over stdio as `cbm` or `user-cbm-mcp`.
+- [ ] MCP server is registered over stdio as `gb` or `user-gb-mcp`.
 - [ ] .NET SDK required by the server is installed.
 - [ ] Target repo has a `.sln` or `.csproj` for Roslyn resolution.
 - [ ] Loose `.cs` files are acceptable only with reduced cross-file semantics.
-- [ ] Optional: `CBM_CACHE_DIR` is set if indexes should live outside the default cache path.
+- [ ] Optional: `GB_CACHE_DIR` is set if indexes should live outside the default cache path.
 
 ## Session Bootstrap Workflow
 
@@ -82,7 +82,7 @@ Prefer native `Read`, `rg`, or IDE tools for:
 | Text in source | `search_code` | Narrow with `path_filter` or verify live text with native read tools |
 | Show code | `get_code_snippet` with `qualified_name` | Use suffix match only when unique; follow suggestions on ambiguity |
 | Call chain | `trace_path` | Disambiguate the target like `get_code_snippet`; tune `direction` and `depth` |
-| Structural, dead code, hotspots | `query_graph` | Call `get_graph_schema` first if labels or edges are unknown |
+| Structural, dead code, hotspots | `query_graph` | Call `get_skill_reference` for the Cypher subset; call `get_graph_schema` if labels or edges are unknown |
 | Git delta or impact | `detect_changes` with scope `files`, `symbols`, or `impact` | Re-index first if changed-file symbols need current source |
 | Persist architecture notes | `manage_adr` | Store only durable decisions, not transient findings |
 | Runtime overlay | `ingest_traces` | Re-run `get_architecture` with runtime aspects after ingest |
@@ -116,7 +116,7 @@ Default pipeline:
 
 Re-index when:
 
-- First using CBM on a repo.
+- First using GraphBase on a repo.
 - A tool reports `project not indexed` or equivalent.
 - After `git pull`, checkout, merge, or branch switch when hooks are absent.
 - The user asks for the current graph.

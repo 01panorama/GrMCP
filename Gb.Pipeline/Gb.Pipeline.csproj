@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Gb.Store\Gb.Store.csproj" />
+    <ProjectReference Include="..\Gb.Graph\Gb.Graph.csproj" />
+    <ProjectReference Include="..\Gb.Roslyn\Gb.Roslyn.csproj" />
+    <ProjectReference Include="..\Gb.Cypher\Gb.Cypher.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Gb.Tests" />
+  </ItemGroup>
+
+</Project>

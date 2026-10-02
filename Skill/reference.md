@@ -1,4 +1,4 @@
-# CBM MCP Reference
+# GraphBase MCP Reference
 
 Distilled from the canonical repo docs in [tools.md](../../../tools.md). Use `list_tools` for live server docs when behavior or examples need confirmation.
 
@@ -34,7 +34,7 @@ Distilled from the canonical repo docs in [tools.md](../../../tools.md). Use `li
 | `list_projects` | none | `{}` | Returns a hint when no projects are indexed. |
 | `index_repository` | `repo_path` | `{"repo_path":"/Users/example/MyApp"}` | Requires a C# project, solution, or loose C# files. `mode` exists for compatibility; do not model incremental as a separate workflow. |
 | `index_status` | `project` | `{"project":"Users-example-MyApp"}` | Missing cache DB returns project-not-found guidance. |
-| `delete_project` | `project` | `{"project":"Users-example-MyApp"}` | Deletes only the local CBM cache DB, not source files. |
+| `delete_project` | `project` | `{"project":"Users-example-MyApp"}` | Deletes only the local GraphBase cache DB, not source files. |
 
 ## Query Tools
 
@@ -43,8 +43,8 @@ Distilled from the canonical repo docs in [tools.md](../../../tools.md). Use `li
 | `search_graph` | `project` | `{"project":"Users-example-MyApp","label":"Method","name_pattern":"Execute","limit":5}` | `semantic_query` is unsupported in the C# port. |
 | `get_code_snippet` | `project`, `qualified_name` | `{"project":"Users-example-MyApp","qualified_name":"Sample.Worker.Execute","include_neighbors":true}` | Ambiguous suffix matches return suggestions instead of source. |
 | `search_code` | `project`, `pattern` | `{"project":"Users-example-MyApp","pattern":"Target","mode":"compact"}` | Implemented as pure .NET scanning, not shell grep. |
-| `query_graph` | `project`, `query` | `{"project":"Users-example-MyApp","query":"MATCH (n:Method) RETURN n.name LIMIT 10"}` | Only the supported read-only Cypher subset is accepted. |
-| `get_graph_schema` | `project` | `{"project":"Users-example-MyApp"}` | Property lists are placeholders in this C# port. |
+| `query_graph` | `project`, `query` | `{"project":"Users-example-MyApp","query":"MATCH (n:Method) RETURN n.name LIMIT 10"}` | Read-only Cypher subset — see **Cypher subset** below; call `get_graph_schema` for labels and edges. |
+| `get_graph_schema` | `project` | `{"project":"Users-example-MyApp"}` | JSON property keys come from the index-time catalog; re-index old caches. Counts are per label or edge type. |
 | `get_architecture` | `project` | `{"project":"Users-example-MyApp","aspects":["all"]}` | Clustering runs on the `CALLS` graph only; runtime data appears only after `ingest_traces`. |
 | `trace_path` | `project`, `function_name` | `{"project":"Users-example-MyApp","function_name":"Target","direction":"inbound","depth":3}` | `cross_service` is a no-op because Route nodes are out of scope. |
 
@@ -65,7 +65,7 @@ Distilled from the canonical repo docs in [tools.md](../../../tools.md). Use `li
 
 ## Output Verbosity
 
-`search_graph`, `get_code_snippet`, `search_code`, and `get_architecture` accept `verbosity`: `full` (default, CBM-parity payloads) or `compact` (fewer tokens). Choose once per call from the question type; do not call the same tool twice to switch modes.
+`search_graph`, `get_code_snippet`, `search_code`, and `get_architecture` accept `verbosity`: `full` (default, GraphBase default payloads) or `compact` (fewer tokens). Choose once per call from the question type; do not call the same tool twice to switch modes.
 
 ## Common Optional Params
 
@@ -80,7 +80,27 @@ Distilled from the canonical repo docs in [tools.md](../../../tools.md). Use `li
 | `detect_changes` | `scope`, `depth`, `base_branch`, `since` |
 | `manage_adr` | `mode`, `content`, `sections` |
 
+## Cypher subset
+
+Supported by `query_graph` (read-only; no CREATE/MERGE/CALL/write clauses):
+
+- `MATCH` patterns with labels, relationship types, hop ranges, inline `{prop: value}` filters; optional `WHERE`, `RETURN`, `ORDER BY`, `LIMIT`, `UNION ALL`.
+- Comparisons: `=`, `<>`, `<`, `>`, `<=`, `>=`, `=~`, `IN [...]`, `IS NULL` / `IS NOT NULL`.
+- String predicates: `CONTAINS`, `STARTS WITH`, `ENDS WITH`.
+- Negation: prefix `NOT` on a predicate (`NOT n.file_path CONTAINS "…"`) or infix after a property (`n.file_path NOT CONTAINS "…"`; same for `NOT STARTS WITH` / `NOT ENDS WITH`).
+- `EXISTS { … }`: single-hop only (see dead-code example below).
+
 ## Cypher Examples
+
+Complexity hotspots (exclude generated paths):
+
+```cypher
+MATCH (m:Method)
+WHERE m.file_path NOT CONTAINS "Reference.cs"
+RETURN m.name, m.qualified_name, m.cognitive, m.complexity
+ORDER BY m.cognitive DESC
+LIMIT 10
+```
 
 Dead code candidates:
 

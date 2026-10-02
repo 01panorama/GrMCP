@@ -1,32 +1,32 @@
-# CBM MCP Tools
+# GraphBase MCP Tools
 
-CBM MCP exposes a local, stdio-based Model Context Protocol server for indexing C# repositories into a SQLite code knowledge graph and querying that graph from agents.
+GraphBase MCP exposes a local, stdio-based Model Context Protocol server for indexing C# repositories into a SQLite code knowledge graph and querying that graph from agents.
 
 ## Setup
 
 Prerequisites:
 
 - Install the .NET SDK required by this build (`net10.0`).
-- Install or build the CBM MCP executable from this repository or the internal tool feed.
+- Install or build the GraphBase MCP executable from this repository or the internal tool feed.
 - Ensure the target repository contains C# source, a `.csproj`, or a `.sln` file. Loose `.cs` files are supported with reduced semantic resolution.
 
-MCP client registration uses stdio. Point your client at the installed command or the local MCP project binary, and set `CBM_CACHE_DIR` if you want indexes outside the default cache location.
+MCP client registration uses stdio. Point your client at the installed command or the local MCP project binary, and set `GB_CACHE_DIR` if you want indexes outside the default cache location.
 
 ```json
 {
   "mcpServers": {
-    "cbm": {
-      "command": "cbm-mcp",
+    "gb": {
+      "command": "gb-mcp",
       "args": [],
       "env": {
-        "CBM_CACHE_DIR": "/Users/example/.cache/cbm"
+        "GB_CACHE_DIR": "/Users/example/.cache/graphbase"
       }
     }
   }
 }
 ```
 
-For local development before packaging, run the server from the MCP project output and use the same stdio registration shape with `command` set to `dotnet` and `args` set to `["exec", "/absolute/path/to/Cbm.Mcp.dll"]`.
+For local development before packaging, run the server from the MCP project output and use the same stdio registration shape with `command` set to `dotnet` and `args` set to `["exec", "/absolute/path/to/gb-mcp.dll"]`.
 
 After registration, smoke test the server by calling `list_tools`, then index a repository:
 
@@ -48,11 +48,11 @@ Typical workflow:
 3. Use query tools such as `search_graph`, `get_code_snippet`, `search_code`, `query_graph`, `get_architecture`, and `trace_path`.
 4. Use mutation tools such as `manage_adr`, `ingest_traces`, and `detect_changes` when you need persisted ADR context, runtime overlays, or git impact analysis.
 
-The cache directory is `CBM_CACHE_DIR` when set, otherwise `~/.cache/graph-mcp-dotnet`.
+The cache directory is `GB_CACHE_DIR` when set, otherwise `~/.cache/graphbase-dotnet`.
 
 ## Output verbosity
 
-`search_graph`, `get_code_snippet`, `search_code`, and `get_architecture` accept `verbosity`: `full` (default, CBM-parity payloads) or `compact` (fewer tokens). Other tools are unchanged. Do not pass `compact` on every call, and do not call the same tool twice (`compact` then `full`). Choose once from the question type.
+`search_graph`, `get_code_snippet`, `search_code`, and `get_architecture` accept `verbosity`: `full` (default, GraphBase default payloads) or `compact` (fewer tokens). Other tools are unchanged. Do not pass `compact` on every call, and do not call the same tool twice (`compact` then `full`). Choose once from the question type.
 
 | Tool | Use `compact` when | Use `full` (or another tool) when |
 |------|--------------------|-----------------------------------|
@@ -67,9 +67,9 @@ Default investigation chain: `search_graph` (`verbosity=compact`) → `get_code_
 
 ## Tool Index
 
-- [`list_tools`](#list_tools) - Return rich documentation for every CBM MCP tool.
-- [`get_skill_reference`](#get_skill_reference) - Return the distilled CBM MCP skill reference as markdown.
-- [`list_projects`](#list_projects) - List indexed projects in the local CBM cache.
+- [`list_tools`](#list_tools) - Return rich documentation for every GraphBase MCP tool.
+- [`get_skill_reference`](#get_skill_reference) - Return the distilled GraphBase MCP skill reference as markdown.
+- [`list_projects`](#list_projects) - List indexed projects in the local GraphBase cache.
 - [`index_repository`](#index_repository) - Index a C# repository into the knowledge graph.
 - [`index_status`](#index_status) - Return node and edge counts plus status for an indexed project.
 - [`delete_project`](#delete_project) - Delete a project's cached index database.
@@ -86,7 +86,7 @@ Default investigation chain: `search_graph` (`verbosity=compact`) → `get_code_
 
 ## list_tools
 
-Return rich documentation for every CBM MCP tool.
+Return rich documentation for every GraphBase MCP tool.
 
 Category: `meta`
 
@@ -151,7 +151,7 @@ Use this first when you need examples, caveats, or parameter details beyond the 
 
 ## get_skill_reference
 
-Return the distilled CBM MCP skill reference as markdown.
+Return the distilled GraphBase MCP skill reference as markdown.
 
 Category: `meta`
 
@@ -172,7 +172,7 @@ Use this to load the compact skill reference (tool index, required/optional para
 ### Example Output
 
 ```json
-"# CBM MCP Reference\n\nDistilled skill reference for CBM MCP tools.\n\n## Tool Index\n..."
+"# GraphBase MCP Reference\n\nDistilled skill reference for GraphBase MCP tools.\n\n## Tool Index\n..."
 ```
 
 ### MCP Invocation
@@ -195,7 +195,7 @@ Use this to load the compact skill reference (tool index, required/optional para
 
 ## list_projects
 
-List indexed projects in the local CBM cache.
+List indexed projects in the local GraphBase cache.
 
 Category: `lifecycle`
 
@@ -262,7 +262,7 @@ Category: `lifecycle`
 
 ### Usage
 
-Run this before query tools. The index is stored in CBM_CACHE_DIR when set, otherwise in the local CBM cache.
+Run this before query tools. The index is stored in GB_CACHE_DIR when set, otherwise in the local GraphBase cache.
 
 ### Example Input
 
@@ -407,7 +407,7 @@ Use this to remove a stale or corrupt local index before rebuilding.
 
 ### Caveats
 
-- This deletes only the local CBM cache database, not source files.
+- This deletes only the local GraphBase cache database, not source files.
 
 ## search_graph
 
@@ -428,7 +428,7 @@ Category: `query`
 | `case_sensitive` | `bool` | no | When true, regex matching is case-sensitive. |
 | `limit` | `int` | no | Maximum results to return. |
 | `offset` | `int` | no | Number of matching nodes to skip before returning results. |
-| `verbosity` | `string` | no | Output detail: full (default, CBM parity) or compact (drops metric/property noise). |
+| `verbosity` | `string` | no | Output detail: full (default, GraphBase default) or compact (drops metric/property noise). |
 | `semantic_query` | `string[]` | no | Unsupported compatibility parameter. |
 
 ### Usage
@@ -484,7 +484,7 @@ Use query for broad discovery, then narrow with label, name_pattern, qn_pattern,
 ### Caveats
 
 - semantic_query is not supported in the C# port because embeddings are out of scope.
-- compact omits node metric properties; omit verbosity or pass full for CBM-parity payloads.
+- compact omits node metric properties; omit verbosity or pass full for GraphBase default payloads.
 
 ## get_code_snippet
 
@@ -499,7 +499,7 @@ Category: `query`
 | `project` | `string` | yes | Indexed project name. |
 | `qualified_name` | `string` | yes | Exact or suffix qualified_name to resolve. |
 | `include_neighbors` | `bool` | no | Include one-hop caller/callee names when available. |
-| `verbosity` | `string` | no | Output detail: full (default, CBM parity) or compact (drops metric/property noise). |
+| `verbosity` | `string` | no | Output detail: full (default, GraphBase default) or compact (drops metric/property noise). |
 
 ### Usage
 
@@ -547,7 +547,7 @@ Use search_graph first to find a qualified_name, then call this tool for source 
 ### Caveats
 
 - Ambiguous suffix matches return suggestions instead of source.
-- compact omits node metric properties; omit verbosity or pass full for CBM-parity payloads.
+- compact omits node metric properties; omit verbosity or pass full for GraphBase default payloads.
 
 ## search_code
 
@@ -567,7 +567,7 @@ Category: `query`
 | `context` | `int` | no | Context lines around each match in compact mode. |
 | `regex` | `bool` | no | When true, treat pattern as extended regex. |
 | `limit` | `int` | no | Maximum enriched results to return. |
-| `verbosity` | `string` | no | Output detail: full (default, CBM parity) or compact (omits raw_matches and redundant counters). Independent of mode. |
+| `verbosity` | `string` | no | Output detail: full (default, GraphBase default) or compact (omits raw_matches and redundant counters). Independent of mode. |
 
 ### Usage
 
@@ -767,7 +767,7 @@ Category: `query`
 | `project` | `string` | yes | Indexed project name. |
 | `path` | `string` | no | Optional directory prefix to scope architecture. |
 | `aspects` | `string[]` | no | Aspects to include, such as structure, packages, clusters, runtime, or all. |
-| `verbosity` | `string` | no | Output detail: full (default, CBM parity) or compact (caps cluster lists and file_tree). |
+| `verbosity` | `string` | no | Output detail: full (default, GraphBase default) or compact (caps cluster lists and file_tree). |
 
 ### Usage
 
@@ -837,7 +837,7 @@ Category: `query`
 | `risk_labels` | `bool` | no | Add risk classification per hop. |
 | `include_tests` | `bool` | no | Include test files in results. |
 | `edge_types` | `string[]` | no | Explicit edge types to follow, overriding mode. |
-| `parameter_name` | `string` | no | Accepted for CBM parity; not used by the handler. |
+| `parameter_name` | `string` | no | Accepted for GraphBase default; not used by the handler. |
 
 ### Usage
 
@@ -969,7 +969,7 @@ Category: `mutation`
 | `project` | `string` | yes | Indexed project name. |
 | `mode` | `string` | no | Operation mode: get, update, store, or sections. |
 | `content` | `string` | no | Full ADR markdown content for update or store mode. |
-| `sections` | `string[]` | no | Accepted for CBM parity; ignored by the handler. |
+| `sections` | `string[]` | no | Accepted for GraphBase default; ignored by the handler. |
 
 ### Usage
 
