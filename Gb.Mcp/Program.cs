@@ -31,8 +31,11 @@ builder.Services.AddSingleton<DetectChangesService>();
 
 builder.Services.AddMcpServer()
     .WithStdioServerTransport()
+    .WithRequestFilters(GbToolCallLogging.Configure)
     .WithTools<GbTools>();
 
+builder.Logging.AddFilter(GbToolCallLogging.LoggerCategory, LogLevel.Information);
+builder.Logging.AddFilter("Gb.Pipeline.IndexRepository", LogLevel.Information);
 builder.Logging.AddConsole(options =>
 {
     options.LogToStandardErrorThreshold = LogLevel.Trace;

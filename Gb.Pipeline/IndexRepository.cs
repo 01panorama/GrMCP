@@ -1,6 +1,8 @@
 using Gb.Graph;
 using Gb.Roslyn;
 using Gb.Store;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Gb.Pipeline;
 
@@ -21,6 +23,12 @@ public sealed record IndexRepositoryResult(
     IndexMode Mode = IndexMode.Full,
     string? FallbackReason = null);
 
+public sealed record IndexRepositoryProgress(
+    int PercentComplete,
+    int FilesCompleted,
+    int FileCount,
+    string Phase);
+
 public sealed class IndexRepository
 {
     private readonly CSharpProjectLoader projectLoader = new();
@@ -28,16 +36,24 @@ public sealed class IndexRepository
     private readonly CSharpRelationshipExtractor relationshipExtractor = new();
     private readonly CSharpDiscovery discovery = new();
     private readonly IncrementalIndexService incrementalIndexService = new();
+    private readonly ILogger<IndexRepository> logger;
+
+    public IndexRepository(ILogger<IndexRepository>? logger = null)
+    {
+        this.logger = logger ?? NullLogger<IndexRepository>.Instance;
+    }
 
     public async Task<IndexRepositoryResult> IndexAsync(
         string repoPath,
         string? databasePath = null,
+        IProgress<IndexRepositoryProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(repoPath);
 
         var repositoryRoot = ResolveRepositoryRoot(repoPath);
         var projectName = GbProjectNaming.DeriveFromPath(repositoryRoot);
+        ReportProgress(progress, projectName, 0, 0, 0, "starting");
         var targetDatabasePath = string.IsNullOrWhiteSpace(databasePath)
             ? GbCachePaths.GetProjectDatabasePath(projectName)
             : Path.GetFullPath(databasePath);
@@ -49,9 +65,12 @@ public sealed class IndexRepository
             repoPath,
             cancellationToken).ConfigureAwait(false);
         var classification = FileChangeClassifier.Classify(repositoryRoot, fingerprints, storedHashes);
+        var fileCount = fingerprints.Count;
+        ReportProgress(progress, projectName, 15, 0, fileCount, "discovered");
 
         if (databaseExists && IncrementalIndexPolicy.IsNoChange(classification))
         {
+            ReportProgress(progress, projectName, 100, fileCount, fileCount, "no_change");
             using var existingStore = GbStore.OpenPath(targetDatabasePath);
             return new IndexRepositoryResult(
                 projectName,
@@ -73,6 +92,8 @@ public sealed class IndexRepository
         {
             try
             {
+                var changedFiles = classification.ChangedOrNew.Count + classification.Deleted.Count;
+                ReportProgress(progress, projectName, 25, 0, changedFiles, "incremental_patch");
                 await incrementalIndexService.PatchAsync(
                     projectName,
                     repositoryRoot,
@@ -82,6 +103,7 @@ public sealed class IndexRepository
                     cancellationToken).ConfigureAwait(false);
 
                 using var verificationStore = GbStore.OpenPath(targetDatabasePath);
+                ReportProgress(progress, projectName, 100, changedFiles, Math.Max(changedFiles, 1), "complete");
                 return new IndexRepositoryResult(
                     projectName,
                     repositoryRoot,
@@ -98,12 +120,17 @@ public sealed class IndexRepository
             }
         }
 
+        ReportProgress(progress, projectName, 25, 0, fileCount, "extracting");
         var extraction = await ExtractGraphAsync(
             projectName,
             repositoryRoot,
             repoPath,
+            fileCount,
+            progress,
             cancellationToken).ConfigureAwait(false);
+        ReportProgress(progress, projectName, 85, fileCount, fileCount, "extracted");
 
+        ReportProgress(progress, projectName, 90, fileCount, fileCount, "persisting");
         PersistExtraction(
             projectName,
             repositoryRoot,
@@ -114,6 +141,7 @@ public sealed class IndexRepository
             savedAdr);
 
         using var fullVerificationStore = GbStore.OpenPath(targetDatabasePath);
+        ReportProgress(progress, projectName, 100, fileCount, fileCount, "complete");
         return new IndexRepositoryResult(
             projectName,
             repositoryRoot,
@@ -183,6 +211,8 @@ public sealed class IndexRepository
         string projectName,
         string repositoryRoot,
         string repoPath,
+        int fileCount,
+        IProgress<IndexRepositoryProgress>? progress,
         CancellationToken cancellationToken)
     {
         var workspaceEntryPoint = ResolveWorkspaceEntryPoint(repoPath, repositoryRoot);
@@ -191,6 +221,7 @@ public sealed class IndexRepository
             var loaded = await projectLoader.LoadAsync(workspaceEntryPoint, cancellationToken)
                 .ConfigureAwait(false);
             var documents = loaded.Projects.SelectMany(project => project.Documents).ToArray();
+            ReportProgress(progress, projectName, 40, 0, fileCount, "extract_definitions");
             var definitions = definitionExtractor.ExtractFromLoadedDocuments(
                 projectName,
                 repositoryRoot,
@@ -198,6 +229,7 @@ public sealed class IndexRepository
             var knownQualifiedNames = definitions.Nodes
                 .Select(node => node.QualifiedName)
                 .ToHashSet(StringComparer.Ordinal);
+            ReportProgress(progress, projectName, 65, fileCount / 2, fileCount, "extract_relationships");
             var relationships = relationshipExtractor.ExtractFromLoadedDocuments(
                 projectName,
                 repositoryRoot,
@@ -213,6 +245,7 @@ public sealed class IndexRepository
         }
 
         var loose = LooseCSharpCompilation.CreateFromFiles(discoveredFiles.Select(file => file.Path));
+        ReportProgress(progress, projectName, 40, 0, fileCount, "extract_definitions");
         var looseDefinitions = definitionExtractor.ExtractFromLooseDocuments(
             projectName,
             repositoryRoot,
@@ -220,12 +253,43 @@ public sealed class IndexRepository
         var looseKnownQualifiedNames = looseDefinitions.Nodes
             .Select(node => node.QualifiedName)
             .ToHashSet(StringComparer.Ordinal);
+        ReportProgress(progress, projectName, 65, fileCount / 2, fileCount, "extract_relationships");
         var looseRelationships = relationshipExtractor.ExtractFromLooseDocuments(
             projectName,
             repositoryRoot,
             loose.Documents,
             looseKnownQualifiedNames);
         return MergeExtraction(looseDefinitions, looseRelationships);
+    }
+
+    private void ReportProgress(
+        IProgress<IndexRepositoryProgress>? progress,
+        string projectName,
+        int percentComplete,
+        int filesCompleted,
+        int fileCount,
+        string phase)
+    {
+        if (fileCount > 0)
+        {
+            logger.LogInformation(
+                "index_repository progress: {Percent}% ({FilesCompleted}/{FileCount} files) phase={Phase} project={ProjectName}",
+                percentComplete,
+                filesCompleted,
+                fileCount,
+                phase,
+                projectName);
+        }
+        else
+        {
+            logger.LogInformation(
+                "index_repository progress: {Percent}% phase={Phase} project={ProjectName}",
+                percentComplete,
+                phase,
+                projectName);
+        }
+
+        progress?.Report(new IndexRepositoryProgress(percentComplete, filesCompleted, fileCount, phase));
     }
 
     private static IReadOnlyList<GbIndexedFileFingerprint> CollectWorkspaceFingerprints(
