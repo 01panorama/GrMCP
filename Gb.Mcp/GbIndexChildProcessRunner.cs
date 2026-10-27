@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Reflection;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol;
@@ -116,7 +115,7 @@ public sealed class GbIndexChildProcessRunner
 
         startInfo.Environment[GbIndexChildArgs.ParentPidEnvironmentVariable] = Environment.ProcessId.ToString();
 
-        var (fileName, arguments) = ResolveSpawnCommand(repoPath, resultFilePath);
+        var (fileName, arguments) = GbMcpProcessLaunch.BuildIndexChildCommand(repoPath, resultFilePath);
         startInfo.FileName = fileName;
         foreach (var argument in arguments)
         {
@@ -124,50 +123,6 @@ public sealed class GbIndexChildProcessRunner
         }
 
         return startInfo;
-    }
-
-    private static (string FileName, IReadOnlyList<string> Arguments) ResolveSpawnCommand(
-        string repoPath,
-        string resultFilePath)
-    {
-        var processPath = Environment.ProcessPath
-            ?? throw new InvalidOperationException("Environment.ProcessPath is not available.");
-
-        var arguments = new List<string>();
-        if (IsDotNetHost(processPath))
-        {
-            arguments.Add("exec");
-            arguments.Add(GetEntryAssemblyPath());
-        }
-
-        arguments.Add("--index");
-        arguments.Add(repoPath);
-        arguments.Add("--result-file");
-        arguments.Add(resultFilePath);
-
-        return (processPath, arguments);
-    }
-
-    private static bool IsDotNetHost(string processPath)
-    {
-        return string.Equals(Path.GetFileName(processPath), "dotnet", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string GetEntryAssemblyPath()
-    {
-        var location = Assembly.GetExecutingAssembly().Location;
-        if (!string.IsNullOrWhiteSpace(location) && File.Exists(location))
-        {
-            return location;
-        }
-
-        var dllPath = Path.Combine(AppContext.BaseDirectory, "gb-mcp.dll");
-        if (File.Exists(dllPath))
-        {
-            return dllPath;
-        }
-
-        throw new InvalidOperationException("Could not resolve gb-mcp entry assembly for index child spawn.");
     }
 
     private static void TryKillProcessTree(Process process)

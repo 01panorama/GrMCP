@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using Gb.Mcp;
 
 namespace Gb.Tests;
 
@@ -388,10 +389,16 @@ public sealed class GbMcpSmokeTests
         {
             var directory = Path.Combine(current.FullName, "Gb.Mcp", "bin", "Debug", "net10.0");
             var executable = Path.Combine(directory, "gb-mcp");
+            var executableWithExtension = Path.Combine(directory, "gb-mcp.exe");
             var dll = Path.Combine(directory, "gb-mcp.dll");
             if (File.Exists(executable))
             {
                 return executable;
+            }
+
+            if (File.Exists(executableWithExtension))
+            {
+                return executableWithExtension;
             }
 
             if (File.Exists(dll))
@@ -495,8 +502,7 @@ public sealed class GbMcpSmokeTests
 
             if (serverPath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
             {
-                startInfo.FileName = "dotnet";
-                startInfo.Arguments = $"exec \"{serverPath}\"";
+                GbMcpProcessLaunch.ConfigureDotNetExec(startInfo, serverPath);
             }
             else
             {
