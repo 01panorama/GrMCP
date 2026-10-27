@@ -15,9 +15,21 @@ if (args.Length >= 1 && args[0] == "--emit-docs")
     return;
 }
 
+if (GbIndexChildArgs.TryParse(args, out var indexRepoPath, out var indexResultFile))
+{
+    var exitCode = await GbIndexChildEntry.RunAsync(indexRepoPath, indexResultFile);
+    Environment.Exit(exitCode);
+}
+
+if (args.Any(arg => string.Equals(arg, "--index", StringComparison.Ordinal)
+    || string.Equals(arg, "--result-file", StringComparison.Ordinal)))
+{
+    Environment.Exit(GbIndexChildEntry.WriteUsageAndFail());
+}
+
 var builder = Host.CreateEmptyApplicationBuilder(settings: null);
 
-builder.Services.AddSingleton<IndexRepository>();
+builder.Services.AddSingleton<GbIndexChildProcessRunner>();
 builder.Services.AddSingleton<SearchGraphService>();
 builder.Services.AddSingleton<CodeSnippetService>();
 builder.Services.AddSingleton<GraphSchemaService>();
@@ -35,7 +47,7 @@ builder.Services.AddMcpServer()
     .WithTools<GbTools>();
 
 builder.Logging.AddFilter(GbToolCallLogging.LoggerCategory, LogLevel.Information);
-builder.Logging.AddFilter("Gb.Pipeline.IndexRepository", LogLevel.Information);
+builder.Logging.AddFilter("Gb.Mcp.GbIndexChildProcessRunner", LogLevel.Information);
 builder.Logging.AddConsole(options =>
 {
     options.LogToStandardErrorThreshold = LogLevel.Trace;

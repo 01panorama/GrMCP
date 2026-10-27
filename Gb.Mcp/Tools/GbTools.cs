@@ -11,7 +11,7 @@ namespace Gb.Mcp.Tools;
 [McpServerToolType]
 public sealed class GbTools
 {
-    private readonly IndexRepository indexRepository;
+    private readonly GbIndexChildProcessRunner indexChildProcessRunner;
     private readonly SearchGraphService searchGraphService;
     private readonly CodeSnippetService codeSnippetService;
     private readonly GraphSchemaService graphSchemaService;
@@ -24,7 +24,7 @@ public sealed class GbTools
     private readonly DetectChangesService detectChangesService;
 
     public GbTools(
-        IndexRepository indexRepository,
+        GbIndexChildProcessRunner indexChildProcessRunner,
         SearchGraphService searchGraphService,
         CodeSnippetService codeSnippetService,
         GraphSchemaService graphSchemaService,
@@ -36,7 +36,7 @@ public sealed class GbTools
         IngestTracesService ingestTracesService,
         DetectChangesService detectChangesService)
     {
-        this.indexRepository = indexRepository;
+        this.indexChildProcessRunner = indexChildProcessRunner;
         this.searchGraphService = searchGraphService;
         this.codeSnippetService = codeSnippetService;
         this.graphSchemaService = graphSchemaService;
@@ -177,9 +177,8 @@ public sealed class GbTools
             throw new McpException("mode 'cross-repo-intelligence' is not supported in the C# port yet");
         }
 
-        var result = await indexRepository.IndexAsync(repo_path, cancellationToken: cancellationToken)
+        return await indexChildProcessRunner.RunIndexAsync(repo_path, cancellationToken)
             .ConfigureAwait(false);
-        return GbMcpJson.FormatIndexResult(result);
     }
 
     [McpServerTool(Name = "index_status")]
